@@ -207,6 +207,15 @@ def getTurbAtrbtYAML(file_name):
 
     return turb_ci, turb_co, rated_ws, rated_pwr, turb_diam
 
+def getBoundaryAtrbtYAML(file_name):
+    '''Retrieve boundary attributes from the <.yaml> file'''
+    # Read in the .yaml file
+    with open(file_name, 'r') as f:
+        bounds = yaml.safe_load(f)['boundaries']
+
+    boundaries = np.asarray(bounds['IIIa'])
+
+    return boundaries
 
 if __name__ == "__main__":
     """Used for demonstration.
