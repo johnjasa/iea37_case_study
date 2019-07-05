@@ -31,15 +31,15 @@ def WindFrame(turb_coords, wind_dir_deg):
     sin_dir = np.sin(-wind_dir_rad)
     # Convert to downwind(x) & crosswind(y) coordinates
 
-    locs = np.concatenate((turb_coords[:,0], turb_coords[:,1])) # added
-    locsx = turb_coords[:,0] # added
-    locsy = turb_coords[:,1] # added
+    # locs = np.concatenate((turb_coords[:,0], turb_coords[:,1])) # added
+    # locsx = turb_coords[:,0] # added
+    # locsy = turb_coords[:,1] # added
 
     # frame_coords = np.recarray(len(turb_coords), coordinate)
-    # frame_coords.x = (locsx * cos_dir) - \
-    #     (locsy * sin_dir) # added
-    # frame_coords.y = (locsx * sin_dir) + \
-    #     (locsy * cos_dir) # added
+    locsx = (turb_coords[:, 0] * cos_dir) - \
+        (turb_coords[:, 1] * sin_dir) # added
+    locsy = (turb_coords[:, 0] * sin_dir) + \
+        (turb_coords[:, 1] * cos_dir) # added
     # frame_coords.x = (turb_coords[:, 0] * cos_dir) - \
     #     (turb_coords[:, 1] * sin_dir)
     # frame_coords.y = (turb_coords[:, 0] * sin_dir) + \
