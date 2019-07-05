@@ -218,7 +218,7 @@ class cs3Opt(Optimization):
 
         dist_out = np.array(dist_out)
 
-        return np.min(dist_out)*100
+        return np.min(dist_out)
 
     def _point_inside_polygon(self, x, y, poly):
         n = len(poly)
