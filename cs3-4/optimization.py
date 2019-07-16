@@ -2,8 +2,9 @@ from autograd import grad
 import autograd.numpy as np
 import pandas as pd
 from scipy.optimize import minimize
+from scipy.optimize import Bounds
 import matplotlib.pyplot as plt
-import iea37_aepcalc as ieatools
+import iea37_aepcalc_test as ieatools
 import copy
 
 class Optimization():
@@ -75,6 +76,9 @@ class cs3Opt(Optimization):
         self._set_opt_bounds()
         self._generate_constraints()
 
+    def set_grad(self, grad_func):
+        self.grad = grad_func
+
     def set_initial_locs(self, locs):
         self.x0 = [self._norm(locx, self.bndx_min, self.bndx_max) for \
                 locx in locs[0:self.nturbs]] \
@@ -86,22 +90,33 @@ class cs3Opt(Optimization):
             self.ws_freq, self.wd, self.D, self.cut_in, self.cut_out, 
             self.rated_ws, self.rated_pow)
 
-        return np.sum(AEP)
+        # return np.sum(AEP)
+        return AEP
 
     def _locs_to_coords(self, locs):
+        print('here')
+        print('nturbs: ', self.nturbs)
+        print('2: ', locs[self.nturbs:2*self.nturbs])
         self.coords = np.array(list(zip(locs[0:self.nturbs], locs[self.nturbs:2*self.nturbs])))
+        print('1: ', self.coords)
 
     def _coords_to_locs(self):
         locs = np.concatenate((self.coords[:,0], self.coords[:,1]))
         return locs
 
     def _get_AEP_opt(self, locs):
-        locs = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
+        # print(locs)
+        locs_tmp = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
                 locx in locs[0:self.nturbs]] \
                 + [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
                 locy in locs[self.nturbs:2*self.nturbs]]
-        self._locs_to_coords(locs)
+        self._locs_to_coords(np.array(locs_tmp))
+        # print(locs_tmp)
+        print('===== before get_AEP =====')
         AEP = self.get_AEP()
+        print('AEP: ', AEP)
+        print('AEP_initial: ', self.AEP_initial)
+        print('===== after get_AEP =====')
 
         return -1 * AEP/self.AEP_initial
 
@@ -135,7 +150,7 @@ class cs3Opt(Optimization):
     def _optimize(self):
         self.residual_plant = minimize(self._get_AEP_opt,
                                 self.x0,
-                                jac=self.jac,
+                                jac=self.grad,
                                 method=self.opt_method,
                                 bounds=self.bnds,
                                 constraints=self.cons,
@@ -159,17 +174,24 @@ class cs3Opt(Optimization):
         self.cons = [tmp1, tmp2]
 
     def _set_opt_bounds(self):
-        self.bnds = [(0.0, 1.0) for _ in range(2*self.nturbs)]
+        # self.bnds = [(0.0, 1.0) for _ in range(2*self.nturbs)]
+        self.bnds = Bounds(0.0, 1.0, keep_feasible=True)
 
     def _space_constraint(self, x_in, min_dist):
-        x = np.nan_to_num(x_in[0:self.nturbs])
-        y = np.nan_to_num(x_in[self.nturbs:])
+        # x = np.nan_to_num(x_in[0:self.nturbs])
+        # y = np.nan_to_num(x_in[self.nturbs:])
+
+        x = [self._unnorm(valx, self.bndx_min, self.bndx_max) \
+                     for valx in x_in[0:self.nturbs]]
+        y = [self._unnorm(valy, self.bndy_min, self.bndy_max) \
+                     for valy in x_in[self.nturbs:2*self.nturbs]]
 
         dist = [np.sqrt((x[i]-x[j])**2 + (y[i]-y[j])**2) \
                 for i in range(self.nturbs) \
                 for j in range(self.nturbs) if i != j]
           
-        return np.min(dist) - self._norm(min_dist, self.bndx_min, self.bndx_max)
+        # return np.min(dist) - self._norm(min_dist, self.bndx_min, self.bndx_max)
+        return np.min(dist) - min_dist
 
     def _distance_from_boundaries(self, x_in, boundaries):  
         x = x_in[0:self.nturbs]

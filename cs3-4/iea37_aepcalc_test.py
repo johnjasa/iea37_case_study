@@ -11,8 +11,6 @@ import sys
 import yaml                             # For reading .yaml files
 from math import radians as DegToRad    # For converting degrees to radians
 from math import log as ln              # For natural logrithm
-from math import cos
-from math import sin
 
 # Structured datatype for holding coordinate pair
 coordinate = np.dtype([('x', 'f8'), ('y', 'f8')])
@@ -26,47 +24,29 @@ def WindFrame(turb_coords, wind_dir_deg):
     # Shift so North comes "along" x-axis, from left to right.
     wind_dir_deg = 270. - wind_dir_deg
     # Convert inflow wind direction from degrees to radians
-    # wind_dir_rad = DegToRad(wind_dir_deg)
-    wind_dir_rad = np.deg2rad(wind_dir_deg)
+    wind_dir_rad = DegToRad(wind_dir_deg)
 
     # Constants to use below
     cos_dir = np.cos(-wind_dir_rad)
     sin_dir = np.sin(-wind_dir_rad)
-    # cos_dir = cos(-wind_dir_rad)
-    # sin_dir = sin(-wind_dir_rad)
     # Convert to downwind(x) & crosswind(y) coordinates
-
-    # locs = np.concatenate((turb_coords[:,0], turb_coords[:,1])) # added
-    locsx = turb_coords[:,0] # added
-    locsy = turb_coords[:,1] # added
-
-    # print('turb_coords[:,0]: ', turb_coords[:,0])
-    # print('locsx: ', locsx)
-    # print('turb_coords: ', turb_coords[:,0])
     # frame_coords = np.recarray(len(turb_coords), coordinate)
-    locsx = (turb_coords[:, 0] * cos_dir) - \
-        (turb_coords[:, 1] * sin_dir) # added
-    # print('locsx: ', locsx)
-    locsy = (turb_coords[:, 0] * sin_dir) + \
-        (turb_coords[:, 1] * cos_dir) # added
-    # locsx = (locsx * cos_dir) - \
-    #     (locsy * sin_dir) # added
-    # locsy = (locsx * sin_dir) + \
-    #     (locsy * cos_dir) # added
+    # print(frame_coords.x)
     # frame_coords.x = (turb_coords[:, 0] * cos_dir) - \
     #     (turb_coords[:, 1] * sin_dir)
     # frame_coords.y = (turb_coords[:, 0] * sin_dir) + \
     #     (turb_coords[:, 1] * cos_dir)
+    locsx = (turb_coords[:, 0] * cos_dir) - \
+        (turb_coords[:, 1] * sin_dir)
+    locsy = (turb_coords[:, 0] * sin_dir) + \
+        (turb_coords[:, 1] * cos_dir)
 
-    # return frame_coords
     return locsx, locsy
 
 
-# def GaussianWake(frame_coords, turb_diam):
 def GaussianWake(locsx, locsy, turb_diam):
     """Return each turbine's total loss due to wake from upstream turbines"""
     # Equations and values explained in <iea37-wakemodel.pdf>
-    # num_turb = len(frame_coords)
     num_turb = len(locsx)
 
     # Constant thrust coefficient
@@ -79,7 +59,8 @@ def GaussianWake(locsx, locsy, turb_diam):
 
     for i in range(num_turb):            # Looking at each turb (Primary)
         # loss_array = np.zeros(num_turb)  # Calculate the loss from all others
-        loss_array = []  # Calculate the loss from all others
+        # loss_array = 0.0
+        loss_array = []
         for j in range(num_turb):        # Looking at all other turbs (Target)
             # x = frame_coords.x[i] - frame_coords.x[j]   # Calculate the x-dist
             # y = frame_coords.y[i] - frame_coords.y[j]   # And the y-offset
@@ -90,37 +71,34 @@ def GaussianWake(locsx, locsy, turb_diam):
                 # Simplified Bastankhah Gaussian wake model
                 exponent = -0.5 * (y/sigma)**2
                 radical = 1. - CT/(8.*sigma**2 / turb_diam**2)
-                # print('sigma: ', sigma)
-                # print('exponent: ', exponent)
-                # if radical < 0:
-                    # print('radical: ', radical)
                 # loss_array[j] = (1.-np.sqrt(radical)) * np.exp(exponent)
-                # loss_array.append((1.-np.sqrt(radical)) * np.exp(exponent))
-                loss_array.append((1.-(radical)**(0.5)) * np.exp(exponent))
+                # loss_array = loss_array + ((1.-np.sqrt(radical)) * np.exp(exponent))**2
+                loss_array.append((1.-np.sqrt(radical)) * np.exp(exponent))
+            else:
+                loss_array.append(1e-56)
             # Note that if the Target is upstream, loss is defaulted to zero
         # Total wake losses from all upstream turbs, using sqrt of sum of sqrs
         # loss[i] = np.sqrt(np.sum(loss_array**2))
+        # print(loss_array)
         loss.append(np.sqrt(np.sum(np.array(loss_array)**2)))
-        # loss.append((np.sum(np.array(loss_array)**2))**(0.5))
-
-    # return loss
+        # loss.append(loss_array)
+        # loss.append((loss_array)**0.5 + 0.0001)
     # print(loss)
+    # print('==============================')
+
     return np.array(loss)
 
 
-# def DirPower(frame_coords, dir_loss, wind_speed,
-#              turb_ci, turb_co, rated_ws, rated_pwr):
-def DirPower(locsx, locsy, dir_loss, wind_speed,
+def DirPower(frame_coords, dir_loss, wind_speed,
              turb_ci, turb_co, rated_ws, rated_pwr):
     """Return the power produced by each turbine."""
-    # num_turb = frame_coords.shape[0]
-    num_turb = len(locsx)
+    num_turb = frame_coords.shape[0]
 
     # Effective windspeed is freestream multiplied by wake deficits
     wind_speed_eff = wind_speed*(1.-dir_loss)
     # By default, the turbine's power output is zero
     # turb_pwr = np.zeros(num_turb)
-    turb_pwr = []
+    turb_pwr = 0.0
 
     # Check to see if turbine produces power for experienced wind speed
     for n in range(num_turb):
@@ -130,20 +108,20 @@ def DirPower(locsx, locsy, dir_loss, wind_speed,
             # Calculate the curve's power
             # turb_pwr[n] = rated_pwr * ((wind_speed_eff[n]-turb_ci)
                                     #    / (rated_ws-turb_ci))**3
-            turb_pwr.append(rated_pwr * ((wind_speed_eff[n]-turb_ci)
-                                       / (rated_ws-turb_ci))**3)
+            turb_pwr = turb_pwr + rated_pwr * ((wind_speed_eff[n]-turb_ci)
+                                       / (rated_ws-turb_ci))**3
         # If we're between the rated and cut-out wind speeds
         elif ((rated_ws <= wind_speed_eff[n])
                 and (wind_speed_eff[n] < turb_co)):
             # Produce the rated power
             # turb_pwr[n] = rated_pwr
-            turb_pwr.append(rated_pwr)
+            turb_pwr = turb_pwr + rated_pwr
 
     # Sum the power from all turbines for this direction
-    pwrDir = np.sum(turb_pwr)
+    # pwrDir = np.sum(turb_pwr)
+    pwrDir = turb_pwr
 
-    # return pwrDir
-    return np.array(pwrDir)
+    return pwrDir
 
 
 def calcAEPcs3(turb_coords, wind_freq, wind_speeds, wind_speed_probs, wind_dir,
@@ -154,40 +132,35 @@ def calcAEPcs3(turb_coords, wind_freq, wind_speeds, wind_speed_probs, wind_dir,
 
     # Power produced by the wind farm from each wind direction
     # pwr_prod_dir = np.zeros(num_dir_bins)
-    pwr_prod_dir = []
+    pwr_prod_dir = 0.0
     #  Power produced by the wind farm at a given windspeed
     # pwr_prod_ws = np.zeros((num_dir_bins, num_speed_bins))
-    pwr_prod_ws = []
 
     # For each directional bin
     for i in range(num_dir_bins):
         # For each wind speed bin
         # Shift coordinate frame of reference to downwind/crosswind
-        # frame_coords = WindFrame(turb_coords, wind_dir[i])
         locsx, locsy = WindFrame(turb_coords, wind_dir[i])
         # Use the Simplified Bastankhah Gaussian wake model for wake deficits
-        # dir_loss = GaussianWake(frame_coords, turb_diam)
         dir_loss = GaussianWake(locsx, locsy, turb_diam)
 
-        pwr_prod_ws_tmp = []
+        pwr_prod_ws = 0.0
         for j in range(num_speed_bins):
             # Find the farm's power for the current direction and speed,
             # multiplied by the probability that the speed will occur
-            # pwr_prod_ws[i][j] = DirPower(frame_coords, dir_loss, wind_speeds[j],
-            #                             turb_ci, turb_co, rated_ws,
-            #                             rated_pwr) * wind_speed_probs[i][j]
-            pwr_prod_ws_tmp.append(DirPower(locsx, locsy, dir_loss, 
-                                        wind_speeds[j],
+            # pwr_prod_ws[i][j] = DirPower(locsx, dir_loss, wind_speeds[j],
+                                        # turb_ci, turb_co, rated_ws,
+                                        # rated_pwr) * wind_speed_probs[i][j]
+            pwr_prod_ws = pwr_prod_ws + DirPower(locsx, dir_loss, wind_speeds[j],
                                         turb_ci, turb_co, rated_ws,
-                                        rated_pwr) * wind_speed_probs[i][j])
+                                        rated_pwr) * wind_speed_probs[i][j]
         # pwr_prod_dir[i] = sum(pwr_prod_ws[i]) * wind_freq[i]
-        pwr_prod_ws.append(pwr_prod_ws_tmp)
-        pwr_prod_dir.append(sum(pwr_prod_ws[i]) * wind_freq[i])
+        # pwr_prod_dir[i] = pwr_prod_ws * wind_freq[i]
+        pwr_prod_dir = pwr_prod_dir + pwr_prod_ws * wind_freq[i]
 
     #  Convert power to AEP
     hrs_per_year = 365.*24.
-    # AEP = hrs_per_year * pwr_prod_dir
-    AEP = hrs_per_year * np.sum(pwr_prod_dir)/1.E6
+    AEP = hrs_per_year * pwr_prod_dir / 1.E6
     # AEP /= 1.E6  # Convert to MWh
 
     return AEP
@@ -266,6 +239,7 @@ def getTurbAtrbtYAML(file_name):
 
     return turb_ci, turb_co, rated_ws, rated_pwr, turb_diam
 
+
 def getBoundaryAtrbtYAML(file_name):
     '''Retrieve boundary attributes from the <.yaml> file'''
     # Read in the .yaml file
@@ -275,6 +249,7 @@ def getBoundaryAtrbtYAML(file_name):
     boundaries = np.asarray(bounds['IIIa'])
 
     return boundaries
+
 
 if __name__ == "__main__":
     """Used for demonstration.
