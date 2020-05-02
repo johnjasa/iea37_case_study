@@ -94,29 +94,20 @@ class cs3Opt(Optimization):
         return AEP
 
     def _locs_to_coords(self, locs):
-        print('here')
-        print('nturbs: ', self.nturbs)
-        print('2: ', locs[self.nturbs:2*self.nturbs])
         self.coords = np.array(list(zip(locs[0:self.nturbs], locs[self.nturbs:2*self.nturbs])))
-        print('1: ', self.coords)
 
     def _coords_to_locs(self):
         locs = np.concatenate((self.coords[:,0], self.coords[:,1]))
         return locs
 
     def _get_AEP_opt(self, locs):
-        # print(locs)
         locs_tmp = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
                 locx in locs[0:self.nturbs]] \
                 + [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
                 locy in locs[self.nturbs:2*self.nturbs]]
         self._locs_to_coords(np.array(locs_tmp))
         # print(locs_tmp)
-        print('===== before get_AEP =====')
         AEP = self.get_AEP()
-        print('AEP: ', AEP)
-        print('AEP_initial: ', self.AEP_initial)
-        print('===== after get_AEP =====')
 
         return -1 * AEP/self.AEP_initial
 
@@ -146,6 +137,33 @@ class cs3Opt(Optimization):
             for valy in opt_locs_norm[self.nturbs:2*self.nturbs]]]
 
         return opt_locs
+        
+    def om_optimize(self):
+        import openmdao.api as om
+        from aep_comp import AEPComp
+        
+        prob = om.Problem()
+        
+        ivc = prob.model.add_subsystem('ivc', om.IndepVarComp(), promotes=['*'])
+        ivc.add_output('locs', val=self.x0)
+        
+        prob.model.add_subsystem('turbines', AEPComp(opt_object=self), promotes=['*'])
+        
+        
+        prob.driver = om.pyOptSparseDriver()
+        prob.driver.options['optimizer'] = 'SNOPT'
+        
+        prob.model.add_design_var('locs')
+        prob.model.add_objective('AEP')
+        
+        prob.setup()
+        
+        prob.run_driver()
+        
+        prob.model.list_inputs()
+        prob.model.list_outputs()
+        
+        
 
     def _optimize(self):
         self.residual_plant = minimize(self._get_AEP_opt,
