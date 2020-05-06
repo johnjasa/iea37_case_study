@@ -3,7 +3,7 @@ import openmdao.api as om
 
 
 class AEPComp(om.ExplicitComponent):
-    # Openmdao component to parameterize distributed quantities for the outer shape of the wind turbine rotor blades
+    
     def initialize(self):
         self.options.declare('opt_object')
         

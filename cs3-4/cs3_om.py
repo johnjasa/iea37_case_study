@@ -18,7 +18,7 @@ results = cs3.om_optimize()
 
 print(results)
 
-cs3.plot_layout_opt_results()
+cs3.om_plot_layout_opt_results()
 
 plt.show()
 

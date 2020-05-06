@@ -141,6 +141,7 @@ class cs3Opt(Optimization):
     def om_optimize(self):
         import openmdao.api as om
         from aep_comp import AEPComp
+        from constraints_comp import ConstraintsComp
         
         prob = om.Problem()
         
@@ -148,12 +149,15 @@ class cs3Opt(Optimization):
         ivc.add_output('locs', val=self.x0)
         
         prob.model.add_subsystem('turbines', AEPComp(opt_object=self), promotes=['*'])
-        
+        prob.model.add_subsystem('constraint_comp', ConstraintsComp(opt_object=self), promotes=['*'])
         
         prob.driver = om.pyOptSparseDriver()
         prob.driver.options['optimizer'] = 'SNOPT'
+        prob.driver.opt_settings['Major optimality tolerance'] = 1e-3
         
         prob.model.add_design_var('locs')
+        prob.model.add_constraint('distance', lower=0.)
+        prob.model.add_constraint('space', lower=0.)
         prob.model.add_objective('AEP')
         
         prob.setup()
@@ -162,6 +166,8 @@ class cs3Opt(Optimization):
         
         prob.model.list_inputs()
         prob.model.list_outputs()
+        
+        self.residual_plant = prob
         
         
 
@@ -290,6 +296,41 @@ class cs3Opt(Optimization):
                  for valx in self.residual_plant.x[0:self.nturbs]]
         locsy = [self._unnorm(valy, self.bndy_min, self.bndy_max) \
                  for valy in self.residual_plant.x[self.nturbs:2*self.nturbs]]
+
+        plt.figure(figsize=(9,6))
+        fontsize= 16
+        plt.plot(locsx_old, locsy_old, 'ob')
+        plt.plot(locsx, locsy, 'or')
+        # plt.title('Layout Optimization Results', fontsize=fontsize)
+        plt.xlabel('x (m)', fontsize=fontsize)
+        plt.ylabel('y (m)', fontsize=fontsize)
+        plt.axis('equal')
+        plt.grid()
+        plt.tick_params(which='both', labelsize=fontsize)
+        plt.legend(['Old locations', 'New locations'], loc='lower center', \
+            bbox_to_anchor=(0.5, 1.01), ncol=2, fontsize=fontsize)
+
+        verts = self.boundaries
+        for i in range(len(verts)):
+            if i == len(verts)-1:
+                plt.plot([verts[i][0], verts[0][0]], \
+                         [verts[i][1], verts[0][1]], 'b')        
+            else:
+                plt.plot([verts[i][0], verts[i+1][0]], \
+                         [verts[i][1], verts[i+1][1]], 'b')
+                         
+    def om_plot_layout_opt_results(self):
+        """
+        Method to plot the old and new locations of the layout opitimization.
+        """
+        locsx_old = [self._unnorm(valx, self.bndx_min, self.bndx_max) \
+                     for valx in self.x0[0:self.nturbs]]
+        locsy_old = [self._unnorm(valy, self.bndy_min, self.bndy_max) \
+                     for valy in self.x0[self.nturbs:2*self.nturbs]]
+        locsx = [self._unnorm(valx, self.bndx_min, self.bndx_max) \
+                 for valx in self.residual_plant['locs'][0:self.nturbs]]
+        locsy = [self._unnorm(valy, self.bndy_min, self.bndy_max) \
+                 for valy in self.residual_plant['locs'][self.nturbs:2*self.nturbs]]
 
         plt.figure(figsize=(9,6))
         fontsize= 16
