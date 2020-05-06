@@ -36,6 +36,7 @@ def WindFrame(turb_coords, wind_dir_deg):
     #     (turb_coords[:, 1] * sin_dir)
     # frame_coords.y = (turb_coords[:, 0] * sin_dir) + \
     #     (turb_coords[:, 1] * cos_dir)
+    # print('turb_coords: ', turb_coords)
     locsx = (turb_coords[:, 0] * cos_dir) - \
         (turb_coords[:, 1] * sin_dir)
     locsy = (turb_coords[:, 0] * sin_dir) + \
