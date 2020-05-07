@@ -54,7 +54,7 @@ class Layout():
         self.gradient = grad(self._get_AEP_opt)
         self.boundary_con_grad = grad(self.distance_from_boundaries)
         self.space_con_grad = grad(self.space_constraint)
-
+        
     def __str__(self):
         return 'layout'
 
@@ -104,7 +104,7 @@ class Layout():
 
         # Compute the objective function
         funcs = {}
-        funcs['obj'] = -1*self._get_AEP_opt(locs)
+        funcs['obj'] = self._get_AEP_opt(locs)
 
         # Compute constraints, if any are defined for the optimization
         funcs = self.compute_cons(funcs, locs)
@@ -127,7 +127,7 @@ class Layout():
         # print('AEP_initial: ', self.AEP_initial)
         # print('===== after get_AEP =====')
 
-        return AEP/self.AEP_initial
+        return -AEP/self.AEP_initial
 
     def get_AEP(self):
         AEP = ieatools.calcAEPcs3(self.coords, self.wd_freq, self.ws,
@@ -223,9 +223,6 @@ class Layout():
         return KS_constraint
 
     def distance_from_boundaries(self, locs, rho=50):  
-        # x = self.x
-        # y = self.y
-
         x = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
                 locx in locs[0]]
         y = [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
@@ -235,8 +232,8 @@ class Layout():
 
         for k in range(self.nturbs):
             dist = []
-            in_poly = self.point_inside_polygon(self.x[k],
-                                                 self.y[k],
+            in_poly = self.point_inside_polygon(x[k],
+                                                 y[k],
                                                  self.boundaries)
 
             for i in range(len(self.boundaries)):
@@ -251,8 +248,8 @@ class Layout():
                 py = p2[1] - p1[1] 
                 norm = px*px + py*py
 
-                u = ((self.x[k] - self.boundaries[i][0])*px + \
-                     (self.y[k] - self.boundaries[i][1])*py)/float(norm)
+                u = ((x[k] - self.boundaries[i][0])*px + \
+                     (y[k] - self.boundaries[i][1])*py)/float(norm)
 
                 if u <= 0:
                     xx = p1[0]
@@ -264,28 +261,26 @@ class Layout():
                     xx = p1[0] + u*px
                     yy = p1[1] + u*py
 
-                dx = self.x[k] - xx
-                dy = self.y[k] - yy
+                dx = x[k] - xx
+                dy = y[k] - yy
                 dist.append(np.sqrt(dx*dx + dy*dy))
 
             dist = np.array(dist)
             if in_poly:
-                dist_out.append(np.min(dist))
+                dist_out.append(dist)
             else:
-                dist_out.append(-np.min(dist))
+                dist_out.append(-dist)
 
         dist_out = np.array(dist_out)
-        # print('dist_out: ', dist_out)
-        # print('here: ', np.array(np.min(dist_out)))
         
         g = - dist_out
         
         # Following code copied from OpenMDAO KSComp().
         # Constraint is satisfied when KS_constraint <= 0
-        g_max = np.max(np.atleast_2d(g), axis=-1)[:, np.newaxis]
+        g_max = np.max(np.ravel(g))
         g_diff = g - g_max
         exponents = np.exp(rho * g_diff)
-        summation = np.sum(exponents, axis=-1)[:, np.newaxis]
+        summation = np.sum(exponents)
         KS_constraint = g_max + 1.0 / rho * np.log(summation)
         
         return KS_constraint

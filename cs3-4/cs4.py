@@ -9,7 +9,7 @@ file_name_boundary = 'iea37-boundary-cs3.yaml'
 
 # opt_options = {'maxiter': 5, 'disp': True, \
 #                'iprint': 2, 'ftol': 1e-7}
-opt_options = {'MAXIT': 20, 'IPRINT': 0, 'ACC': 1e-3}
+opt_options = {'MAXIT': 30, 'IPRINT': 0, 'ACC': 1e-7}
 
 model = layout.Layout(file_name_turb, file_name_boundary)
 
