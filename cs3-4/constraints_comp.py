@@ -22,8 +22,8 @@ class ConstraintsComp(om.ExplicitComponent):
     def compute(self, inputs, outputs):
         opt_object = self.options['opt_object']
         
-        outputs['distance'] = opt_object._distance_from_boundaries(inputs['locs'], opt_object.boundaries_norm)
-        outputs['space'] = opt_object._space_constraint(inputs['locs'], opt_object.min_dist)
+        outputs['distance'][:] = opt_object._distance_from_boundaries(inputs['locs'], opt_object.boundaries_norm)
+        outputs['space'][:] = opt_object._space_constraint(inputs['locs'], opt_object.min_dist)
         # These values have to positive
         
         
