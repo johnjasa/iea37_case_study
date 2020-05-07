@@ -105,7 +105,6 @@ class Layout():
         # Compute the objective function
         funcs = {}
         funcs['obj'] = -1*self._get_AEP_opt(locs)
-        print(-1*self._get_AEP_opt(locs))
 
         # Compute constraints, if any are defined for the optimization
         funcs = self.compute_cons(funcs, locs)
@@ -185,9 +184,8 @@ class Layout():
         return optProb
 
     def add_con_group(self, optProb):
-        optProb.addConGroup('boundary_con', 1, lower=0.0)
-        optProb.addConGroup('spacing_con', 1,
-                            lower=self.min_dist)
+        optProb.addConGroup('boundary_con', 1, upper=0.0)
+        optProb.addConGroup('spacing_con', 1, upper=0.0)
 
         return optProb
 
@@ -201,7 +199,7 @@ class Layout():
     # User-defined methods
     ###########################################################################
 
-    def space_constraint(self, locs):
+    def space_constraint(self, locs, rho=50):
         x = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
                 locx in locs[0]]
         y = [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
@@ -211,10 +209,20 @@ class Layout():
                 (y[i] - y[j])**2) \
                 for j in range(self.nturbs) if i != j]) \
                 for i in range(self.nturbs)]
+                
+        g = 1 - np.array(dist) / self.min_dist
+        
+        # Following code copied from OpenMDAO KSComp().
+        # Constraint is satisfied when KS_constraint <= 0
+        g_max = np.max(np.atleast_2d(g), axis=-1)[:, np.newaxis]
+        g_diff = g - g_max
+        exponents = np.exp(rho * g_diff)
+        summation = np.sum(exponents, axis=-1)[:, np.newaxis]
+        KS_constraint = g_max + 1.0 / rho * np.log(summation)
+        
+        return KS_constraint
 
-        return dist
-
-    def distance_from_boundaries(self, locs):  
+    def distance_from_boundaries(self, locs, rho=50):  
         # x = self.x
         # y = self.y
 
@@ -269,7 +277,18 @@ class Layout():
         dist_out = np.array(dist_out)
         # print('dist_out: ', dist_out)
         # print('here: ', np.array(np.min(dist_out)))
-        return dist_out
+        
+        g = - dist_out
+        
+        # Following code copied from OpenMDAO KSComp().
+        # Constraint is satisfied when KS_constraint <= 0
+        g_max = np.max(np.atleast_2d(g), axis=-1)[:, np.newaxis]
+        g_diff = g - g_max
+        exponents = np.exp(rho * g_diff)
+        summation = np.sum(exponents, axis=-1)[:, np.newaxis]
+        KS_constraint = g_max + 1.0 / rho * np.log(summation)
+        
+        return KS_constraint
 
     def point_inside_polygon(self, x, y, poly):
         n = len(poly)
