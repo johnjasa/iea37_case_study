@@ -6,7 +6,7 @@ Modified 15 Apr 2019 for case studies 3 and 4
 """
 
 from __future__ import print_function   # For Python 3 compatibility
-import jax.numpy as np
+import autograd.numpy as np
 import sys
 import yaml                             # For reading .yaml files
 from math import radians as DegToRad    # For converting degrees to radians
