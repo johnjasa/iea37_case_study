@@ -1,5 +1,5 @@
-from autograd import grad
-import autograd.numpy as np
+from jax import grad
+import jax.numpy as np
 import pandas as pd
 from scipy.optimize import minimize
 from scipy.optimize import Bounds

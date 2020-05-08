@@ -1,7 +1,7 @@
 import optimization as opt
 import matplotlib.pyplot as plt
-from autograd import grad
-import autograd.numpy as np
+from jax import grad
+import jax.numpy as np
 
 file_name_turb = 'iea37-ex-opt3.yaml'
 file_name_boundary = 'iea37-boundary-cs3.yaml'

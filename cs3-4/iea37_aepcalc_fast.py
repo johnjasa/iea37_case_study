@@ -6,7 +6,10 @@ Modified 15 Apr 2019 for case studies 3 and 4
 """
 
 from __future__ import print_function   # For Python 3 compatibility
-import numpy as np
+# from jax.config import config
+# config.update("jax_enable_x64", True)
+import jax
+import jax.numpy as np
 import sys
 import yaml                             # For reading .yaml files
 from math import radians as DegToRad    # For converting degrees to radians
@@ -24,24 +27,27 @@ def WindFrame(turb_coords, wind_dir_deg):
     # Shift so North comes "along" x-axis, from left to right.
     wind_dir_deg = 270. - wind_dir_deg
     # Convert inflow wind direction from degrees to radians
-    wind_dir_rad = DegToRad(wind_dir_deg)
+    # wind_dir_rad = DegToRad(wind_dir_deg)
+    wind_dir_rad = np.deg2rad(wind_dir_deg)
 
     # Constants to use below
     cos_dir = np.cos(-wind_dir_rad)
     sin_dir = np.sin(-wind_dir_rad)
-    # Convert to downwind(x) & crosswind(y) coordinates
-    frame_coords = np.recarray(len(turb_coords), coordinate)
-    frame_coords.x = (turb_coords[:, 0] * cos_dir) - \
-        (turb_coords[:, 1] * sin_dir)
-    frame_coords.y = (turb_coords[:, 0] * sin_dir) + \
-        (turb_coords[:, 1] * cos_dir)
 
-    return frame_coords
+    locsx = turb_coords[:,0] # added
+    locsy = turb_coords[:,1] # added
 
-def GaussianWake(frame_coords, turb_diam):
+    locsx = (turb_coords[:, 0] * cos_dir) - \
+        (turb_coords[:, 1] * sin_dir) # added
+    locsy = (turb_coords[:, 0] * sin_dir) + \
+        (turb_coords[:, 1] * cos_dir) # added
+
+    return locsx, locsy
+
+def GaussianWake(locsx, locsy, turb_diam):
     """Return each turbine's total loss due to wake from upstream turbines"""
     # Equations and values explained in <iea37-wakemodel.pdf>
-    num_turb = len(frame_coords)
+    num_turb = len(locsx)
 
     # Constant thrust coefficient
     CT = 4.0*1./3.*(1.0-1./3.)
@@ -51,8 +57,9 @@ def GaussianWake(frame_coords, turb_diam):
     # Array holding the wake deficit seen at each turbine
     loss = np.zeros(num_turb)
 
-    x = np.subtract.outer(frame_coords.x, frame_coords.x)
-    y = np.subtract.outer(frame_coords.y, frame_coords.y)
+    ones = np.ones((num_turb))
+    y = np.einsum('j,i', ones, locsy) - np.einsum('i,j', ones, locsy)
+    x = np.einsum('j,i', ones, locsx) - np.einsum('i,j', ones, locsx)
     
     loss_array = np.zeros(x.shape)
     
@@ -61,16 +68,17 @@ def GaussianWake(frame_coords, turb_diam):
     # Simplified Bastankhah Gaussian wake model
     exponent = -0.5 * (y[mask]/sigma)**2
     radical = 1. - CT/(8.*sigma**2 / turb_diam**2)
-    loss_array[mask] = (1.-np.sqrt(radical)) * np.exp(exponent)
+    new_mask = np.nonzero(mask)
+    jax.ops.index_update(loss_array, new_mask, (1. - np.sqrt(radical)) * np.exp(exponent))
     
     # Note that if the Target is upstream, loss is defaulted to zero
     # Total wake losses from all upstream turbs, using sqrt of sum of sqrs
     loss = np.sqrt(np.sum(loss_array**2, axis=1))
-
+    
     return loss
 
 
-def DirPower(frame_coords, dir_loss, wind_speeds,
+def DirPower(dir_loss, wind_speeds,
              turb_ci, turb_co, rated_ws, rated_pwr, wind_speed_prob):
     """Return the power produced by each turbine."""
     
@@ -81,20 +89,21 @@ def DirPower(frame_coords, dir_loss, wind_speeds,
     turb_pwr = np.zeros(wind_speeds_eff.shape)
     
     # If we're between the cut-in and rated wind speeds
-    mask = np.logical_and(turb_ci <= wind_speeds_eff, wind_speeds_eff < rated_ws)
+    mask1 = np.logical_and(turb_ci <= wind_speeds_eff, wind_speeds_eff < rated_ws)
     
     # Calculate the curve's power
-    turb_pwr[mask] = rated_pwr * ((wind_speeds_eff[mask] - turb_ci) / (rated_ws - turb_ci))**3
+    jax.ops.index_update(turb_pwr, mask1, rated_pwr * ((wind_speeds_eff[mask1] - turb_ci) / (rated_ws - turb_ci))**3)
     
     # If we're between the rated and cut-out wind speeds
-    mask = np.logical_and(rated_ws <= wind_speeds_eff, wind_speeds_eff < turb_co)
+    mask2 = np.logical_and(rated_ws <= wind_speeds_eff, wind_speeds_eff < turb_co)
     
     # Produce the rated power
-    turb_pwr[mask] = rated_pwr
+    jax.ops.index_update(turb_pwr, mask2, rated_pwr)
 
     # Sum the power from all turbines for this direction
     pwrDir = np.sum(turb_pwr, axis=1)
     pwr = pwrDir * wind_speed_prob
+    print('pwr', pwr)
     
     return pwr
 
@@ -106,24 +115,24 @@ def calcAEPcs3(turb_coords, wind_freq, wind_speeds, wind_speed_probs, wind_dir,
     num_speed_bins = wind_speeds.shape[0]   # Number of wind speed bins
 
     # Power produced by the wind farm from each wind direction
-    pwr_prod_dir = np.zeros(num_dir_bins)
+    pwr_prod_dir = []
     #  Power produced by the wind farm at a given windspeed
-    pwr_prod_ws = np.zeros((num_dir_bins, num_speed_bins))
+    pwr_prod_ws = []
 
     # For each directional bin
     for i in range(num_dir_bins):
         # For each wind speed bin
         # Shift coordinate frame of reference to downwind/crosswind
-        frame_coords = WindFrame(turb_coords, wind_dir[i])
+        locsx, locsy = WindFrame(turb_coords, wind_dir[i])
         # Use the Simplified Bastankhah Gaussian wake model for wake deficits
-        dir_loss = GaussianWake(frame_coords, turb_diam)
+        dir_loss = GaussianWake(locsx, locsy, turb_diam)
 
         # Find the farm's power for the current direction and speed,
         # multiplied by the probability that the speed will occur
-        pwr_prod_ws[i] = DirPower(frame_coords, dir_loss, wind_speeds,
+        pwr_prod_ws.append(DirPower(dir_loss, wind_speeds,
                                     turb_ci, turb_co, rated_ws,
-                                    rated_pwr, wind_speed_probs[i])
-        pwr_prod_dir[i] = sum(pwr_prod_ws[i]) * wind_freq[i]
+                                    rated_pwr, wind_speed_probs[i]))
+        pwr_prod_dir.append(sum(pwr_prod_ws[i]) * wind_freq[i])
 
     #  Convert power to AEP
     hrs_per_year = 365.*24.
@@ -239,9 +248,9 @@ if __name__ == "__main__":
     #-- Calculate the AEP from ripped values --#
     from time import time
     s = time()
-    for i in range(20):
+    for i in range(1):
         AEP = calcAEPcs3(turb_coords, wind_dir_freq, wind_speeds, wind_speed_probs, wind_dir,
                     turb_diam, turb_ci, turb_co, rated_ws, rated_pwr)
     print(time() - s)
     # Print AEP summed for all directions
-    print('This has to be 0:', np.sum(AEP) - 938573.629497466)
+    print('This has to be 0:', np.sum(AEP) - 938573.6294974659)

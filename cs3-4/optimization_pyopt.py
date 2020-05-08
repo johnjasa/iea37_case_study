@@ -11,7 +11,7 @@
 # the License.
 
 import sys
-import autograd.numpy as np
+import jax.numpy as np
 import iea37_aepcalc_test as ieatools
 # from ....utilities import setup_logger
 
