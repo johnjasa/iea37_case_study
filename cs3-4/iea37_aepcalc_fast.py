@@ -51,21 +51,21 @@ def GaussianWake(frame_coords, turb_diam):
     # Array holding the wake deficit seen at each turbine
     loss = np.zeros(num_turb)
 
-    for i in range(num_turb):            # Looking at each turb (Primary)
-        loss_array = np.zeros(num_turb)  # Calculate the loss from all others
-        x = frame_coords.x[i] - frame_coords.x   # Calculate the x-dist
-        y = frame_coords.y[i] - frame_coords.y   # And the y-offset
-        
-        mask = x > 0.
-        sigma = k*x[mask] + turb_diam/np.sqrt(8.)  # Calculate the wake loss
-        # Simplified Bastankhah Gaussian wake model
-        exponent = -0.5 * (y[mask]/sigma)**2
-        radical = 1. - CT/(8.*sigma**2 / turb_diam**2)
-        loss_array[mask] = (1.-np.sqrt(radical)) * np.exp(exponent)
-        
-        # Note that if the Target is upstream, loss is defaulted to zero
-        # Total wake losses from all upstream turbs, using sqrt of sum of sqrs
-        loss[i] = np.sqrt(np.sum(loss_array**2))
+    x = np.subtract.outer(frame_coords.x, frame_coords.x)
+    y = np.subtract.outer(frame_coords.y, frame_coords.y)
+    
+    loss_array = np.zeros(x.shape)
+    
+    mask = x > 0.
+    sigma = k*x[mask] + turb_diam/np.sqrt(8.)  # Calculate the wake loss
+    # Simplified Bastankhah Gaussian wake model
+    exponent = -0.5 * (y[mask]/sigma)**2
+    radical = 1. - CT/(8.*sigma**2 / turb_diam**2)
+    loss_array[mask] = (1.-np.sqrt(radical)) * np.exp(exponent)
+    
+    # Note that if the Target is upstream, loss is defaulted to zero
+    # Total wake losses from all upstream turbs, using sqrt of sum of sqrs
+    loss = np.sqrt(np.sum(loss_array**2, axis=1))
 
     return loss
 
@@ -229,7 +229,7 @@ if __name__ == "__main__":
     #-- Calculate the AEP from ripped values --#
     from time import time
     s = time()
-    for i in range(2):
+    for i in range(20):
         AEP = calcAEPcs3(turb_coords, wind_dir_freq, wind_speeds, wind_speed_probs, wind_dir,
                     turb_diam, turb_ci, turb_co, rated_ws, rated_pwr)
     print(time() - s)
