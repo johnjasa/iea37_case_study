@@ -15,7 +15,8 @@
 from autograd import grad
 import autograd.numpy as np
 import matplotlib.pyplot as plt
-import iea37_aepcalc_test as ieatools
+# import iea37_aepcalc_test as ieatools
+import iea37_aepcalc_fast as ieatools
 
 class Layout():
     def __init__(self, file_name, bnds_file_name, min_dist=None, 
@@ -77,21 +78,21 @@ class Layout():
     def reinitialize(self):
         pass
 
-    def _sens(self, varDict, funcs):
-        self.parse_opt_vars(varDict)
-        locs = [self.x] + [self.y]
-
-        funcsSens = {}
-        funcsSens['obj', 'x'] = self.gradient(locs)[0]
-        funcsSens['obj', 'y'] = self.gradient(locs)[1]
-
-        funcsSens['boundary_con', 'x'] = self.boundary_con_grad(locs)[0]
-        funcsSens['boundary_con', 'y'] = self.boundary_con_grad(locs)[1]
-        funcsSens['spacing_con', 'x'] = self.space_con_grad(locs)[0]
-        funcsSens['spacing_con', 'y'] = self.space_con_grad(locs)[1]
-
-        fail = False
-        return funcsSens, fail
+    # def _sens(self, varDict, funcs):
+    #     self.parse_opt_vars(varDict)
+    #     locs = [self.x] + [self.y]
+    # 
+    #     funcsSens = {}
+    #     funcsSens['obj', 'x'] = self.gradient(locs)[0]
+    #     funcsSens['obj', 'y'] = self.gradient(locs)[1]
+    # 
+    #     funcsSens['boundary_con', 'x'] = self.boundary_con_grad(locs)[0]
+    #     funcsSens['boundary_con', 'y'] = self.boundary_con_grad(locs)[1]
+    #     funcsSens['spacing_con', 'x'] = self.space_con_grad(locs)[0]
+    #     funcsSens['spacing_con', 'y'] = self.space_con_grad(locs)[1]
+    # 
+    #     fail = False
+    #     return funcsSens, fail
 
 
 
