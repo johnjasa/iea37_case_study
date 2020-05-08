@@ -126,7 +126,7 @@ class Layout():
         # print('AEP: ', AEP)
         # print('AEP_initial: ', self.AEP_initial)
         # print('===== after get_AEP =====')
-
+        
         return -AEP/self.AEP_initial
 
     def get_AEP(self):
@@ -220,9 +220,9 @@ class Layout():
         summation = np.sum(exponents, axis=-1)[:, np.newaxis]
         KS_constraint = g_max + 1.0 / rho * np.log(summation)
         
-        return KS_constraint
+        return KS_constraint[0][0]
 
-    def distance_from_boundaries(self, locs, rho=50):  
+    def distance_from_boundaries(self, locs, rho=500):  
         x = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
                 locx in locs[0]]
         y = [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
@@ -273,7 +273,7 @@ class Layout():
 
         dist_out = np.array(dist_out)
         
-        g = - dist_out
+        g = - dist_out / 1.e4
         
         # Following code copied from OpenMDAO KSComp().
         # Constraint is satisfied when KS_constraint <= 0

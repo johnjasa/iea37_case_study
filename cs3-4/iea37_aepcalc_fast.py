@@ -127,9 +127,8 @@ def calcAEPcs3(turb_coords, wind_freq, wind_speeds, wind_speed_probs, wind_dir,
 
     #  Convert power to AEP
     hrs_per_year = 365.*24.
-    AEP = hrs_per_year * pwr_prod_dir
+    AEP = hrs_per_year * np.sum(pwr_prod_dir)
     AEP /= 1.E6  # Convert to MWh
-
     return AEP
 
 
