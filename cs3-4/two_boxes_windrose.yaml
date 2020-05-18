@@ -1,0 +1,32 @@
+title: IEA Wind Task 37 Wind Plant Ontology version 0.1
+description: Wind resource conditions for a IEA37 WFLO case studies 3 and 4.
+              Template located at <https://github.com/IEAWindTask37/ontology/blob/master/plant_energy_inflow_lookup.yaml>
+
+definitions:
+  wind_inflow:
+    description: inflow for current wind conditions
+    properties:
+      direction:
+        description: The wind direction frequencies. Binned in degrees, with North as the 0.
+        units: deg
+        bins: [  0.0]
+        frequency: [1.0]
+        minimum: 0.0
+        maximum: 360.0
+
+      speed:
+        desctiption: wind speed frequency samples for each binned direction and wind speed
+        units: m/s
+        bins: [  0.90,  1.98,  3.18,  4.40,  5.64,
+                 6.87,  8.11,  9.35, 10.59, 11.83,
+                13.07, 14.31, 15.56, 16.80, 18.04,
+                19.28, 20.52, 21.77, 23.01, 24.25]
+        frequency:
+          - [0.0156401750, 0.0497090909, 0.0811024638, 0.1050883329, 0.1190301631, 0.1222668202, 0.1159445367, 0.1025108097, 0.0850102571, 0.0663764744, 0.0489239316, 0.0340999223, 0.0225045684, 0.0140748572, 0.0083476946, 0.0046969535, 0.0025085092, 0.0012722583, 0.0006121243, 0.0002800569]
+        minimum: 0.0
+        maximum: 25.0
+        units: m/s
+
+      turbulence_intenstiy:
+        description: turbulence intensity
+        default: 0.075

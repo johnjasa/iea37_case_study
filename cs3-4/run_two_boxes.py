@@ -4,9 +4,8 @@ import matplotlib.pyplot as plt
 from autograd import grad
 import autograd.numpy as np
 
-file_name_turb = 'iea37-ex-opt3.yaml'
-file_name_turb = 'simple_layout.yaml'
-file_name_boundary = 'iea37-boundary-cs3.yaml'
+file_name_turb = 'two_boxes_layout.yaml'
+file_name_boundary = 'two_boxes_boundaries.yaml'
 
 # opt_options = {'maxiter': 5, 'disp': True, \
 #                'iprint': 2, 'ftol': 1e-7}

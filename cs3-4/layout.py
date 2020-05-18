@@ -17,6 +17,9 @@ import autograd.numpy as np
 import matplotlib.pyplot as plt
 # import iea37_aepcalc_test as ieatools
 import iea37_aepcalc_fast as ieatools
+from time import time
+from scipy.spatial.distance import cdist
+
 
 class Layout():
     def __init__(self, file_name, bnds_file_name, min_dist=None, 
@@ -51,7 +54,7 @@ class Layout():
         self.x = self.x0
         self.y = self.y0
         # print('self.coords: ', self.coords)
-
+        
         self.gradient = grad(self._get_AEP_opt)
         self.boundary_con_grad = grad(self.distance_from_boundaries)
         self.space_con_grad = grad(self.space_constraint)
@@ -205,11 +208,13 @@ class Layout():
                 locx in locs[0]]
         y = [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
                 locy in locs[1]]
-
-        dist = [np.min([np.sqrt((x[i] - x[j])**2 + \
-                (y[i] - y[j])**2) \
-                for j in range(self.nturbs) if i != j]) \
-                for i in range(self.nturbs)]
+                
+        # Sped up distance calc here using vectorization
+        locs = np.vstack((x, y)).T
+        distances = cdist(locs, locs)
+        arange = np.arange(distances.shape[0])
+        distances[arange, arange] = 1e10
+        dist = np.min(distances, axis=0)
                 
         g = 1 - np.array(dist) / self.min_dist
         
