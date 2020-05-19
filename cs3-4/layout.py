@@ -228,8 +228,9 @@ class Layout():
         KS_constraint = g_max + 1.0 / rho * np.log(summation)
         
         return KS_constraint[0][0]
+        
 
-    def distance_from_boundaries(self, locs, rho=100):  
+    def distance_from_boundaries(self, locs, rho=500):  
         x = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
                 locx in locs[0]]
         y = [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
@@ -244,7 +245,9 @@ class Layout():
                 if not polygon.contains(point):
                     dist_out[i, j] *= -1.
                     
-                 
+        # We only care if the point is in one of the regions
+        dist_out = -np.max(dist_out, axis=1)
+        
         g = dist_out / 1e4
         
         # Following code copied from OpenMDAO KSComp().
