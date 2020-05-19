@@ -12,7 +12,7 @@
  
 # See https://floris.readthedocs.io for documentation
  
-from autograd import grad
+# from autograd import grad
 import numpy as np
 import matplotlib.pyplot as plt
 # import iea37_aepcalc_test as ieatools
@@ -57,24 +57,26 @@ class Layout():
         self.y = self.y0
         # print('self.coords: ', self.coords)
         
-        self.gradient = grad(self._get_AEP_opt)
-        self.boundary_con_grad = grad(self.distance_from_boundaries)
-        self.space_con_grad = grad(self.space_constraint)
+        self.place_turbines()
+        self.x0 = self.x.copy()
+        self.y0 = self.y.copy()
+        
+        # self.gradient = grad(self._get_AEP_opt)
+        # self.boundary_con_grad = grad(self.distance_from_boundaries)
+        # self.space_con_grad = grad(self.space_constraint)
         
     def __str__(self):
         return 'layout'
 
     def _norm(self, val, x1, x2):
-        return (val - x1)/(x2 - x1)
+        return (np.array(val) - x1)/(x2 - x1)
     
     def _unnorm(self, val, x1, x2):
         return np.array(val)*(x2 - x1) + x1
 
     def set_initial_locs(self, locs):
-        self.x0 = [self._norm(locx, self.bndx_min, self.bndx_max) for \
-                locx in locs[0:self.nturbs]]
-        self.y0 = [self._norm(locy, self.bndy_min, self.bndy_max) for \
-                locy in locs[self.nturbs:2*self.nturbs]]
+        self.x0 = self._norm(locs[0:self.nturbs], self.bndx_min, self.bndx_max)
+        self.y0 = self._norm(locs[self.nturbs:2*self.nturbs], self.bndy_min, self.bndy_max)
                 
     ###########################################################################
     # Required private optimization methods
@@ -105,12 +107,11 @@ class Layout():
         # Parse the variable dictionary
         self.parse_opt_vars(varDict)
 
-        # Update turbine map with turbince locations
-        locs = [self.x] + [self.y]
-
         # Compute the objective function
         funcs = {}
-        funcs['obj'] = self._get_AEP_opt(locs)
+        funcs['obj'] = self._get_AEP_opt()
+        
+        locs = np.vstack((self.x, self.y)).T
         
         # Compute constraints, if any are defined for the optimization
         funcs = self.compute_cons(funcs, locs)
@@ -118,14 +119,10 @@ class Layout():
         fail = False
         return funcs, fail
 
-    def _get_AEP_opt(self, locs):
-        # print('locs: ', locs)
-        locs_tmp = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
-                locx in locs[0:self.nturbs]] \
-                + [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
-                locy in locs[self.nturbs:2*self.nturbs]]
-        self._locs_to_coords(np.array(locs_tmp))
-        # print('locs_tmp :', locs_tmp)
+    def _get_AEP_opt(self):
+        x = self._unnorm(self.x, self.bndx_min, self.bndx_max)
+        y = self._unnorm(self.y, self.bndy_min, self.bndy_max)
+        self.coords = np.vstack((x, y)).T
 
         # print('===== before get_AEP =====')
         AEP = self.get_AEP()
@@ -142,14 +139,6 @@ class Layout():
 
         # return np.sum(AEP)
         return AEP
-
-    def _locs_to_coords(self, locs):
-        # print('here')
-        # print('nturbs: ', self.nturbs)
-        # print('locs again: ', locs)
-        # print('2: ', locs[0])
-        self.coords = np.array(list(zip(locs[0], locs[1])))
-        # print('1: ', self.coords)
 
     def _coords_to_locs(self):
         locs = np.concatenate((self.coords[:,0], self.coords[:,1]))
@@ -204,12 +193,16 @@ class Layout():
     ###########################################################################
     # User-defined methods
     ###########################################################################
+    
+    def place_turbines(self, seed=314):
+        np.random.seed(seed)
+        x = np.random.random(self._nturbs)
+        y = np.random.random(self._nturbs)
+        self.x, self.y = x, y
 
     def space_constraint(self, locs, rho=50):
-        x = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
-                locx in locs[0]]
-        y = [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
-                locy in locs[1]]
+        x = self._unnorm(locs[0], self.bndx_min, self.bndx_max)
+        y = self._unnorm(locs[1], self.bndy_min, self.bndy_max)
                 
         # Sped up distance calc here using vectorization
         locs = np.vstack((x, y)).T
@@ -232,10 +225,8 @@ class Layout():
         
 
     def distance_from_boundaries(self, locs, rho=500):  
-        x = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
-                locx in locs[0]]
-        y = [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
-                locy in locs[1]]
+        x = self._unnorm(locs[0], self.bndx_min, self.bndx_max)
+        y = self._unnorm(locs[1], self.bndy_min, self.bndy_max)
 
         locs = np.vstack((x, y)).T
         points = MultiPoint(locs)
@@ -268,18 +259,14 @@ class Layout():
         locsx = sol.getDVs()['x']
         locsy = sol.getDVs()['y']
 
-        locsx = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
-                locx in locsx]
-        locsy = [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
-                locy in locsy]
+        locsx = self._unnorm(locsx, self.bndx_min, self.bndx_max)
+        locsy = self._unnorm(locsy, self.bndy_min, self.bndy_max)
 
         plt.figure(figsize=(9,6))
         fontsize= 16
         plt.plot(
-            [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
-                locx in self.x0],
-            [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
-                locy in self.y0],
+            self._unnorm(self.x0, self.bndx_min, self.bndx_max),
+            self._unnorm(self.y0, self.bndy_min, self.bndy_max),
             'ob'
         )
         plt.plot(locsx, locsy, 'or')
