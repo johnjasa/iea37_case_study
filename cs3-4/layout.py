@@ -223,8 +223,8 @@ class Layout():
         self.x0, self.y0 = self.x.copy(), self.y.copy()
 
     def space_constraint(self, locs, rho=50):
-        x = self._unnorm(locs[0], self.bndx_min, self.bndx_max)
-        y = self._unnorm(locs[1], self.bndy_min, self.bndy_max)
+        x = self._unnorm(locs[:, 0], self.bndx_min, self.bndx_max)
+        y = self._unnorm(locs[:, 1], self.bndy_min, self.bndy_max)
                 
         # Sped up distance calc here using vectorization
         locs = np.vstack((x, y)).T
@@ -247,12 +247,12 @@ class Layout():
         
 
     def distance_from_boundaries(self, locs, rho=500):  
-        x = self._unnorm(locs[0], self.bndx_min, self.bndx_max)
-        y = self._unnorm(locs[1], self.bndy_min, self.bndy_max)
-
+        x = self._unnorm(locs[:, 0], self.bndx_min, self.bndx_max)
+        y = self._unnorm(locs[:, 1], self.bndy_min, self.bndy_max)
+        
         locs = np.vstack((x, y)).T
         points = MultiPoint(locs)
-        dist_out = np.zeros((len(points), len(self.polygons)))
+        dist_out = np.zeros((len(x), len(self.polygons)))
         for j, polygon in enumerate(self.polygons):
             for i, point in enumerate(points):
                 dist_out[i, j] = polygon.exterior.distance(point)

@@ -10,9 +10,11 @@ file_name_boundary = 'iea37-boundary-cs4.yaml'
 # opt_options = {'maxiter': 5, 'disp': True, \
 #                'iprint': 2, 'ftol': 1e-7}
 # opt_options = {'MAXIT': 100, 'IPRINT': 0, 'ACC': 1e-7}
-opt_options = {'Major iterations limit': 40}
+opt_options = {'Major iterations limit': 100}
 
 model = layout.Layout(file_name_turb, file_name_boundary)
+
+model.place_turbines_within_bounds([0, 14, 13, 14, 40])
 
 opt_prob = opt.Optimization(model=model, solver='SNOPT', optOptions=opt_options)
 
