@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import iea37_aepcalc_fast as ieatools
 from time import time
 from scipy.spatial.distance import cdist
+from shapely.geometry import MultiPolygon, MultiPoint, Polygon
 
 
 class Layout():
@@ -39,15 +40,15 @@ class Layout():
         self.min_dist = 2*self.rotor_diameter
 
         self.boundaries = ieatools.getBoundaryAtrbtYAML(bnds_file_name)
-        self.bndx_min = np.min([val[0] for val in self.boundaries])
-        self.bndy_min = np.min([val[1] for val in self.boundaries])
-        self.bndx_max = np.max([val[0] for val in self.boundaries])
-        self.bndy_max = np.max([val[1] for val in self.boundaries])
+        self.bndx_min, self.bndy_min = np.min(np.array(self.boundaries), axis=(0,1))
+        self.bndx_max, self.bndy_max = np.max(np.array(self.boundaries), axis=(0,1))
+        
         self.boundaries_norm = [[self._norm(val[0], self.bndx_min, \
                                 self.bndx_max), self._norm(val[1], \
                                 self.bndy_min, self.bndy_max)] \
                                 for val in self.boundaries]
-
+        self.polygons = MultiPolygon([Polygon(bounds) for bounds in self.boundaries])
+        
         self.AEP_initial = self.get_AEP()
 
         self.set_initial_locs(self._coords_to_locs())
@@ -73,7 +74,7 @@ class Layout():
                 locx in locs[0:self.nturbs]]
         self.y0 = [self._norm(locy, self.bndy_min, self.bndy_max) for \
                 locy in locs[self.nturbs:2*self.nturbs]]
-
+                
     ###########################################################################
     # Required private optimization methods
     ###########################################################################
@@ -228,58 +229,23 @@ class Layout():
         
         return KS_constraint[0][0]
 
-    def distance_from_boundaries(self, locs, rho=500):  
+    def distance_from_boundaries(self, locs, rho=100):  
         x = [self._unnorm(locx, self.bndx_min, self.bndx_max) for \
                 locx in locs[0]]
         y = [self._unnorm(locy, self.bndy_min, self.bndy_max) for \
                 locy in locs[1]]
 
-        dist_out = []
-
-        for k in range(self.nturbs):
-            dist = []
-            in_poly = self.point_inside_polygon(x[k],
-                                                 y[k],
-                                                 self.boundaries)
-
-            for i in range(len(self.boundaries)):
-                self.boundaries = np.array(self.boundaries)
-                p1 = self.boundaries[i]
-                if i == len(self.boundaries) - 1:
-                    p2 = self.boundaries[0]
-                else:
-                    p2 = self.boundaries[i + 1]
-
-                px = p2[0] - p1[0]
-                py = p2[1] - p1[1] 
-                norm = px*px + py*py
-
-                u = ((x[k] - self.boundaries[i][0])*px + \
-                     (y[k] - self.boundaries[i][1])*py)/float(norm)
-
-                if u <= 0:
-                    xx = p1[0]
-                    yy = p1[1]
-                elif u >=1:
-                    xx = p2[0]
-                    yy = p2[1]
-                else:
-                    xx = p1[0] + u*px
-                    yy = p1[1] + u*py
-
-                dx = x[k] - xx
-                dy = y[k] - yy
-                dist.append(np.sqrt(dx*dx + dy*dy))
-
-            dist = np.array(dist)
-            if in_poly:
-                dist_out.append(dist)
-            else:
-                dist_out.append(-dist)
-
-        dist_out = np.array(dist_out)
-        
-        g = - dist_out / 1.e4
+        locs = np.vstack((x, y)).T
+        points = MultiPoint(locs)
+        dist_out = np.zeros((len(points), len(self.polygons)))
+        for j, polygon in enumerate(self.polygons):
+            for i, point in enumerate(points):
+                dist_out[i, j] = polygon.exterior.distance(point)
+                if not polygon.contains(point):
+                    dist_out[i, j] *= -1.
+                    
+                 
+        g = dist_out / 1e4
         
         # Following code copied from OpenMDAO KSComp().
         # Constraint is satisfied when KS_constraint <= 0
@@ -290,24 +256,6 @@ class Layout():
         KS_constraint = g_max + 1.0 / rho * np.log(summation)
         
         return KS_constraint
-
-    def point_inside_polygon(self, x, y, poly):
-        n = len(poly)
-        inside =False
-
-        p1x, p1y = poly[0]
-        for i in range(n + 1):
-            p2x, p2y = poly[i % n]
-            if y > min(p1y, p2y):
-                if y <= max(p1y, p2y):
-                    if x <= max(p1x, p2x):
-                        if p1y != p2y:
-                            xinters = (y - p1y)*(p2x - p1x)/(p2y - p1y) + p1x
-                        if p1x == p2x or x <= xinters:
-                            inside = not inside
-            p1x, p1y = p2x, p2y
-
-        return inside
 
     def plot_layout_opt_results(self, sol):
         """
@@ -340,14 +288,9 @@ class Layout():
         plt.legend(['Old locations', 'New locations'], loc='lower center', \
             bbox_to_anchor=(0.5, 1.01), ncol=2, fontsize=fontsize)
 
-        verts = self.boundaries
-        for i in range(len(verts)):
-            if i == len(verts)-1:
-                plt.plot([verts[i][0], verts[0][0]], \
-                         [verts[i][1], verts[0][1]], 'b')        
-            else:
-                plt.plot([verts[i][0], verts[i+1][0]], \
-                         [verts[i][1], verts[i+1][1]], 'b')
+        for polygon in self.polygons:    
+            xs, ys = polygon.exterior.xy    
+            plt.plot(xs, ys, alpha=0.5, color='b')
 
         plt.show()
 

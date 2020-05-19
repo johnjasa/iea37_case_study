@@ -10,7 +10,7 @@ file_name_boundary = 'two_boxes_boundaries.yaml'
 # opt_options = {'maxiter': 5, 'disp': True, \
 #                'iprint': 2, 'ftol': 1e-7}
 # opt_options = {'MAXIT': 100, 'IPRINT': 0, 'ACC': 1e-7}
-opt_options = {'Major iterations limit': 1000}
+opt_options = {'Major iterations limit': 200}
 
 model = layout.Layout(file_name_turb, file_name_boundary)
 

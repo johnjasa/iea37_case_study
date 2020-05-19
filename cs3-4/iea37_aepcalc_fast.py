@@ -210,8 +210,8 @@ def getBoundaryAtrbtYAML(file_name):
     # Read in the .yaml file
     with open(file_name, 'r') as f:
         bounds = yaml.safe_load(f)['boundaries']
-
-    boundaries = np.asarray(bounds['IIIa'])
+        
+    boundaries = [np.array(bounds[key]) for key in bounds]
 
     return boundaries
 
