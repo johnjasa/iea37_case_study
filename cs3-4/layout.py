@@ -15,6 +15,8 @@
 # from autograd import grad
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+from matplotlib.collections import PatchCollection
 # import iea37_aepcalc_test as ieatools
 import iea37_aepcalc_fast as ieatools
 from time import time
@@ -274,7 +276,7 @@ class Layout():
         
         return KS_constraint
 
-    def plot_layout_opt_results(self, sol):
+    def plot_layout_opt_results(self, sol, filename=None):
         """
         Method to plot the old and new locations of the layout opitimization.
         """
@@ -284,28 +286,44 @@ class Layout():
         locsx = self._unnorm(locsx, self.bndx_min, self.bndx_max)
         locsy = self._unnorm(locsy, self.bndy_min, self.bndy_max)
 
-        plt.figure(figsize=(9,6))
+        plt.figure(figsize=(9, 6))
         fontsize= 16
-        plt.plot(
-            self._unnorm(self.x0, self.bndx_min, self.bndx_max),
-            self._unnorm(self.y0, self.bndy_min, self.bndy_max),
-            'ob'
-        )
+        
+        x_init = self._unnorm(self.x0, self.bndx_min, self.bndx_max)
+        y_init = self._unnorm(self.y0, self.bndy_min, self.bndy_max)
+        plt.plot(x_init, y_init, 'ob')
+        patches = []
+        for coords in zip(x_init, y_init):
+            patches.append(mpatches.Circle(coords, radius=self.D, linewidth=0.))
+        collection = PatchCollection(patches, facecolor='b', alpha=0.2)
+        plt.gca().add_collection(collection)
+        
         plt.plot(locsx, locsy, 'or')
-        # plt.title('Layout Optimization Results', fontsize=fontsize)
+        patches = []
+        for coords in zip(locsx, locsy):
+            patches.append(mpatches.Circle(coords, radius=self.D, linewidth=0.))
+        collection = PatchCollection(patches, facecolor='r', alpha=0.2)
+        plt.gca().add_collection(collection)
+        
+        plt.title(f'Initial AEP: {self.AEP_initial:.0f}, Optimized AEP: {self.get_AEP():.0f}', fontsize=fontsize)
         plt.xlabel('x (m)', fontsize=fontsize)
         plt.ylabel('y (m)', fontsize=fontsize)
         plt.axis('equal')
         plt.grid()
         plt.tick_params(which='both', labelsize=fontsize)
         plt.legend(['Old locations', 'New locations'], loc='lower center', \
-            bbox_to_anchor=(0.5, 1.01), ncol=2, fontsize=fontsize)
+            bbox_to_anchor=(0.5, 1.1), ncol=2, fontsize=fontsize)
 
         for polygon in self.polygons:    
             xs, ys = polygon.exterior.xy    
             plt.plot(xs, ys, alpha=0.5, color='b')
+            
+        plt.tight_layout()
 
-        plt.show()
+        if filename is not None:
+            plt.savefig(filename)
+        else:
+            plt.show()
 
     ###########################################################################
     # Properties
