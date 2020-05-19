@@ -13,7 +13,7 @@
 # See https://floris.readthedocs.io for documentation
  
 from autograd import grad
-import autograd.numpy as np
+import numpy as np
 import matplotlib.pyplot as plt
 # import iea37_aepcalc_test as ieatools
 import iea37_aepcalc_fast as ieatools
@@ -40,8 +40,9 @@ class Layout():
         self.min_dist = 2*self.rotor_diameter
 
         self.boundaries = ieatools.getBoundaryAtrbtYAML(bnds_file_name)
-        self.bndx_min, self.bndy_min = np.min(np.array(self.boundaries), axis=(0,1))
-        self.bndx_max, self.bndy_max = np.max(np.array(self.boundaries), axis=(0,1))
+        bound_array = np.vstack(self.boundaries)
+        self.bndx_min, self.bndy_min = np.min(bound_array, axis=0)
+        self.bndx_max, self.bndy_max = np.max(bound_array, axis=0)
         
         self.boundaries_norm = [[self._norm(val[0], self.bndx_min, \
                                 self.bndx_max), self._norm(val[1], \
@@ -110,7 +111,7 @@ class Layout():
         # Compute the objective function
         funcs = {}
         funcs['obj'] = self._get_AEP_opt(locs)
-
+        
         # Compute constraints, if any are defined for the optimization
         funcs = self.compute_cons(funcs, locs)
 
@@ -132,7 +133,7 @@ class Layout():
         # print('AEP_initial: ', self.AEP_initial)
         # print('===== after get_AEP =====')
         
-        return -AEP/self.AEP_initial
+        return -AEP  # /self.AEP_initial
 
     def get_AEP(self):
         AEP = ieatools.calcAEPcs3(self.coords, self.wd_freq, self.ws,
