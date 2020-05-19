@@ -14,6 +14,8 @@ opt_options = {'Major iterations limit': 50}
 
 model = layout.Layout(file_name_turb, file_name_boundary)
 
+model.place_turbines_within_bounds([0, 4])
+
 opt_prob = opt.Optimization(model=model, solver='SNOPT', optOptions=opt_options)
 
 sol = opt_prob.optimize()

@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import iea37_aepcalc_fast as ieatools
 from time import time
 from scipy.spatial.distance import cdist
-from shapely.geometry import MultiPolygon, MultiPoint, Polygon
+from shapely.geometry import MultiPolygon, MultiPoint, Polygon, Point
 
 
 class Layout():
@@ -57,9 +57,6 @@ class Layout():
         self.y = self.y0
         # print('self.coords: ', self.coords)
         
-        self.place_turbines()
-        self.x0 = self.x.copy()
-        self.y0 = self.y.copy()
         
         # self.gradient = grad(self._get_AEP_opt)
         # self.boundary_con_grad = grad(self.distance_from_boundaries)
@@ -194,11 +191,36 @@ class Layout():
     # User-defined methods
     ###########################################################################
     
-    def place_turbines(self, seed=314):
+    def randomly_place_turbines(self, seed=314):
+        """ This will place turbines entirely randomly with no notion of
+        feasbility or being within bounds. """
         np.random.seed(seed)
         x = np.random.random(self._nturbs)
         y = np.random.random(self._nturbs)
         self.x, self.y = x, y
+        
+    def generate_random(self, number, polygon):
+        list_of_points = []
+        minx, miny, maxx, maxy = polygon.bounds
+        counter = 0
+        while counter < number:
+            pnt = Point(np.random.uniform(minx, maxx), np.random.uniform(miny, maxy))
+            if polygon.contains(pnt):
+                list_of_points.append(pnt.coords)
+                counter += 1
+        return list_of_points
+        
+    def place_turbines_within_bounds(self, n_sub_turbs, seed=314):
+        all_points = []
+        for i_polygon, polygon in enumerate(self.polygons):
+            points = self.generate_random(n_sub_turbs[i_polygon], polygon)
+            all_points.extend(list(points))
+            
+        all_points = np.array(all_points).squeeze()
+        self.x = self._norm(all_points[:, 0], self.bndx_min, self.bndx_max)
+        self.y = self._norm(all_points[:, 1], self.bndy_min, self.bndy_max)
+        
+        self.x0, self.y0 = self.x.copy(), self.y.copy()
 
     def space_constraint(self, locs, rho=50):
         x = self._unnorm(locs[0], self.bndx_min, self.bndx_max)
