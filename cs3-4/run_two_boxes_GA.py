@@ -10,7 +10,7 @@ import layout as layout
 file_name_turb = 'two_boxes_layout.yaml'
 file_name_boundary = 'two_boxes_boundaries.yaml'
 
-opt_options = {'Major iterations limit': 25}
+opt_options = {'Major iterations limit': 50}
 out_dir = 'two_boxes_GA_results'
 seed = 314
 
@@ -88,7 +88,7 @@ prob = om.Problem()
 prob.model.add_subsystem('ivc', om.IndepVarComp('turbine_distribution', 4), promotes=['*'])
 prob.model.add_subsystem('comp', GradientOpt(model=model), promotes=['*'])
 
-prob.model.add_design_var('turbine_distribution', lower=4, upper=8)
+prob.model.add_design_var('turbine_distribution', lower=0, upper=5)
 prob.model.add_objective('AEP')
 
 prob.driver = om.SimpleGADriver()

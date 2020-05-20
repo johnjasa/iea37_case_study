@@ -81,7 +81,7 @@ class Optimization():
         if hasattr(self.model, '_sens'):
             self.sol = self.opt(self.optProb, sens=self.model._sens)
         else:
-            self.sol = self.opt(self.optProb, sens='FDR')
+            self.sol = self.opt(self.optProb, sens='CDR')
 
     # Public methods
 
