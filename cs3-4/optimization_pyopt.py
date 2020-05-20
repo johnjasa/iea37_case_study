@@ -64,8 +64,8 @@ class Optimization():
 
         if solver is not None:
             self.solver = solver
-            print('Setting up optimization with user\'s choice of solver: ', 
-                  self.solver)
+            # print('Setting up optimization with user\'s choice of solver: ', 
+                  # self.solver)
         else:
             self.solver = 'SLSQP'
             print('Setting up optimization with default solver: SLSQP.')

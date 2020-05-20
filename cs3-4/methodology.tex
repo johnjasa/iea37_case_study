@@ -1,0 +1,59 @@
+\documentclass{article}
+
+\usepackage[margin=0.75in]{geometry}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{siunitx}
+\usepackage{tabularx}
+    \newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\sisetup{detect-all}
+
+\begin{document}
+
+We're performing layout optimization using a nested hybrid method that uses both gradient-free and gradient-based algorithms.
+This nested approach is shown in Fig.~\ref{xdsm_for_GA}
+We first use a gradient-free method, such as a GA or PSO, to choose the number of turbines in each of the distinct regions.
+Then, a greedy placement algorithm is used to seed the initial turbine locations intelligently.
+Those turbine locations are used as the starting points for a gradient-based method, such as SNOPT, which directly maximizes AEP while controlling the turbine locations subject to boundary and spacing constraints.
+
+Once the gradient-based optimizer is converged to a reasonable tolerance, the locally optimal AEP value is passed back to the gradient-free optimizer.
+The gradient-free optimizer is only varying the number of turbines in each region while attempting to maximize AEP.
+The gradient-based method only passes optimal AEP values to the gradient-free method.
+Essentially, the outer optimizer is providing intelligent turbine placement for the inner optimizer.
+
+We have preliminary results for a simplified version of the problem and are working towards the full case4 study.
+
+\begin{figure}[H]
+\begin{center}
+ \includegraphics[width=1.0\linewidth]{xdsm_for_GA}
+ \caption{Extended design structure matrix for the nested optimization problem.}
+ \label{xdsm_for_GA}
+\end{center}
+\end{figure}
+
+
+% \begin{table}[]
+% \centering
+% \caption[Sample aerostructural optimization problem formulation within OpenAeroStruct.]{Sample aerostructural optimization problem formulation within OpenAeroStruct. FB stands for fuel burn. $n_{cp}$ corresponds to the number of control points for the B-spline interpolation that controls the spanwise distribution of the variables. The numbers of thickness and twist control points do not necessarily need to be the same. The structural failure constraint is aggregated using a Kreisselmeier--Steinhauser (KS) function.}
+% \label{formulation_table}
+% \setlength{\tabcolsep}{0.5em} % for the horizontal padding
+% \begin{tabular}{lllll}
+% \hline
+%            & \bf{Function/variable} & \bf{Description} & \bf{Size} \\ \hline
+% maximize   & AEP      &  objective function           & 1 \vspace{6pt}    \\
+% w.r.t.     &         thickness          &    structural spar thickness         &  $n_{cp}$    \\
+%      &         twist          &    aerodynamic twist & $n_{cp}$    \\
+%      &         $\alpha$ & angle of attack & 1    \\
+%      &         root chord          &    root chord & 1    \\
+%           &         taper          &    taper ratio &  1  \vspace{6pt}  \\
+% subject to &          $L = W$         &     lift equals weight        &    1  \\
+%  &         $ \text{KS}\left( \sigma_{2.5g} \right) \leq {\sigma_{\text{yield}}}$         & aggregated spar failure &    1
+% \end{tabular}
+% \end{table}
+
+
+
+\end{document}

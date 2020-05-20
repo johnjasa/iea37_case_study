@@ -27,7 +27,7 @@ model = layout.Layout(file_name_turb, file_name_boundary)
 results = []
 
 for i_rep in range(repetitions):
-    for i_case in range(2, 3):
+    for i_case in range(3, 7):
         model.place_turbines_within_bounds([i_case, model._nturbs - i_case])
         model.AEP_initial = -model._get_AEP_opt()
 

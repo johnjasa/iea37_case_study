@@ -282,7 +282,7 @@ class Layout():
         """
         locsx = sol.getDVs()['x']
         locsy = sol.getDVs()['y']
-
+        
         locsx = self._unnorm(locsx, self.bndx_min, self.bndx_max)
         locsy = self._unnorm(locsy, self.bndy_min, self.bndy_max)
 
@@ -313,15 +313,16 @@ class Layout():
         plt.tick_params(which='both', labelsize=fontsize)
         plt.legend(['Old locations', 'New locations'], loc='lower center', \
             bbox_to_anchor=(0.5, 1.1), ncol=2, fontsize=fontsize)
-
+            
         for polygon in self.polygons:    
             xs, ys = polygon.exterior.xy    
             plt.plot(xs, ys, alpha=0.5, color='b')
             
         plt.tight_layout()
-
+        
         if filename is not None:
             plt.savefig(filename)
+            plt.close()
         else:
             plt.show()
 
