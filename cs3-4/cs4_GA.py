@@ -52,10 +52,14 @@ class GradientOpt(om.ExplicitComponent):
         locsx = sol.getDVs()['x']
         locsy = sol.getDVs()['y']
         
+        locs = np.vstack((locsx, locsy)).T
+        
         locsx = model._unnorm(locsx, model.bndx_min, model.bndx_max)
         locsy = model._unnorm(locsy, model.bndy_min, model.bndy_max)
         
         AEP_final = -model._get_AEP_opt()
+        
+        cons = model.compute_cons({}, locs)
         
         results_dict = {
             'optTime' : sol.optTime,
@@ -64,6 +68,8 @@ class GradientOpt(om.ExplicitComponent):
             'AEP_final' : AEP_final,
             'locsx' : locsx,
             'locsy' : locsy,
+            'boundary_con' : cons['boundary_con'],
+            'spacing_con' : cons['spacing_con'],
             }
             
         results.append(results_dict)
@@ -74,6 +80,9 @@ class GradientOpt(om.ExplicitComponent):
         fail = False
         
         outputs['AEP'] = -AEP_final
+        
+        with open(f'{out_dir}/results.pkl', "wb") as dill_file:
+            dill.dump(results, dill_file)
 
 prob = om.Problem()
 
@@ -86,7 +95,6 @@ prob.model.add_objective('AEP')
 prob.driver = om.SimpleGADriver()
 prob.driver.options['debug_print'] = ['desvars', 'objs']
 prob.driver.options['pop_size'] = 8
-prob.driver.options['run_parallel'] = True
 
 prob.setup()
 prob.run_driver()

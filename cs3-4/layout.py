@@ -224,7 +224,7 @@ class Layout():
         
         self.x0, self.y0 = self.x.copy(), self.y.copy()
 
-    def space_constraint(self, locs, rho=50):
+    def space_constraint(self, locs, rho=250):
         x = self._unnorm(locs[:, 0], self.bndx_min, self.bndx_max)
         y = self._unnorm(locs[:, 1], self.bndy_min, self.bndy_max)
                 
