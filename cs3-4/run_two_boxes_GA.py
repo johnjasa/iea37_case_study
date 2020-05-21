@@ -85,7 +85,7 @@ class GradientOpt(om.ExplicitComponent):
 
 prob = om.Problem()
 
-prob.model.add_subsystem('ivc', om.IndepVarComp('turbine_distribution', 4), promotes=['*'])
+prob.model.add_subsystem('ivc', om.IndepVarComp('turbine_distribution', 2), promotes=['*'])
 prob.model.add_subsystem('comp', GradientOpt(model=model), promotes=['*'])
 
 prob.model.add_design_var('turbine_distribution', lower=0, upper=5)

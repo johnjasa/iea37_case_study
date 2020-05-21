@@ -24,17 +24,18 @@ def WindFrame(turb_coords, wind_dir_deg):
     # Shift so North comes "along" x-axis, from left to right.
     wind_dir_deg = 270. - wind_dir_deg
     # Convert inflow wind direction from degrees to radians
-    wind_dir_rad = DegToRad(wind_dir_deg)
+    wind_dir_rad = np.radians(wind_dir_deg)
 
     # Constants to use below
     cos_dir = np.cos(-wind_dir_rad)
     sin_dir = np.sin(-wind_dir_rad)
+    
     # Convert to downwind(x) & crosswind(y) coordinates
-    frame_coords = np.recarray(len(turb_coords), coordinate)
-    frame_coords.x = (turb_coords[:, 0] * cos_dir) - \
-        (turb_coords[:, 1] * sin_dir)
-    frame_coords.y = (turb_coords[:, 0] * sin_dir) + \
-        (turb_coords[:, 1] * cos_dir)
+    frame_coords = np.recarray((len(turb_coords), len(wind_dir_deg)), coordinate)
+    frame_coords.x = np.outer(turb_coords[:, 0], cos_dir) - \
+        np.outer(turb_coords[:, 1], sin_dir)
+    frame_coords.y = np.outer(turb_coords[:, 0], sin_dir) + \
+        np.outer(turb_coords[:, 1], cos_dir)
 
     return frame_coords
 
@@ -50,23 +51,30 @@ def GaussianWake(frame_coords, turb_diam):
         
     # Array holding the wake deficit seen at each turbine
     loss = np.zeros(num_turb)
-
-    x = np.subtract.outer(frame_coords.x, frame_coords.x)
-    y = np.subtract.outer(frame_coords.y, frame_coords.y)
+    
+    num_dir_bins = frame_coords.x.shape[1]
+    
+    x = np.zeros((num_turb, num_turb, num_dir_bins))
+    y = np.zeros((num_turb, num_turb, num_dir_bins))
+    
+    for i in range(num_dir_bins):
+        x[:, :, i] = np.subtract.outer(frame_coords.x[:, i], frame_coords.x[:, i])
+        y[:, :, i] = np.subtract.outer(frame_coords.y[:, i], frame_coords.y[:, i])
     
     loss_array = np.zeros(x.shape)
     
     mask = x > 0.
-    sigma = k*x[mask] + turb_diam/np.sqrt(8.)  # Calculate the wake loss
+    sigma = k*x[mask] + turb_diam / np.sqrt(8.)  # Calculate the wake loss
+    
     # Simplified Bastankhah Gaussian wake model
-    exponent = -0.5 * (y[mask]/sigma)**2
-    radical = 1. - CT/(8.*sigma**2 / turb_diam**2)
-    loss_array[mask] = (1.-np.sqrt(radical)) * np.exp(exponent)
+    exponent = -0.5 * (y[mask] / sigma)**2
+    radical = 1. - CT / (8. * sigma**2 / turb_diam**2)
+    loss_array[mask] = (1. - np.sqrt(radical)) * np.exp(exponent)
     
     # Note that if the Target is upstream, loss is defaulted to zero
     # Total wake losses from all upstream turbs, using sqrt of sum of sqrs
     loss = np.sqrt(np.sum(loss_array**2, axis=1))
-
+    
     return loss
 
 
@@ -74,8 +82,10 @@ def DirPower(frame_coords, dir_loss, wind_speeds,
              turb_ci, turb_co, rated_ws, rated_pwr, wind_speed_prob):
     """Return the power produced by each turbine."""
     
+    num_dir_bins = frame_coords.x.shape[1]
+    
     # Effective windspeed is freestream multiplied by wake deficits
-    wind_speeds_eff = np.outer(wind_speeds, (1. - dir_loss))
+    wind_speeds_eff = np.einsum('i,jk->ijk', wind_speeds, 1. - dir_loss)
     
     # By default, the turbine's power output is zero
     turb_pwr = np.zeros(wind_speeds_eff.shape)
@@ -91,10 +101,10 @@ def DirPower(frame_coords, dir_loss, wind_speeds,
     
     # Produce the rated power
     turb_pwr[mask] = rated_pwr
-
+    
     # Sum the power from all turbines for this direction
     pwrDir = np.sum(turb_pwr, axis=1)
-    pwr = pwrDir * wind_speed_prob
+    pwr = pwrDir * wind_speed_prob.T
     
     return pwr
 
@@ -110,25 +120,24 @@ def calcAEPcs3(turb_coords, wind_freq, wind_speeds, wind_speed_probs, wind_dir,
     #  Power produced by the wind farm at a given windspeed
     pwr_prod_ws = np.zeros((num_dir_bins, num_speed_bins))
 
-    # For each directional bin
-    for i in range(num_dir_bins):
-        # For each wind speed bin
-        # Shift coordinate frame of reference to downwind/crosswind
-        frame_coords = WindFrame(turb_coords, wind_dir[i])
-        # Use the Simplified Bastankhah Gaussian wake model for wake deficits
-        dir_loss = GaussianWake(frame_coords, turb_diam)
-
-        # Find the farm's power for the current direction and speed,
-        # multiplied by the probability that the speed will occur
-        pwr_prod_ws[i] = DirPower(frame_coords, dir_loss, wind_speeds,
-                                    turb_ci, turb_co, rated_ws,
-                                    rated_pwr, wind_speed_probs[i])
-        pwr_prod_dir[i] = sum(pwr_prod_ws[i]) * wind_freq[i]
+    # Shift coordinate frame of reference to downwind/crosswind
+    frame_coords = WindFrame(turb_coords, wind_dir)
+    
+    # Use the Simplified Bastankhah Gaussian wake model for wake deficits
+    dir_loss = GaussianWake(frame_coords, turb_diam)
+    
+    # Find the farm's power for the current direction and speed,
+    # multiplied by the probability that the speed will occur
+    pwr_prod_ws = DirPower(frame_coords, dir_loss, wind_speeds,
+                                turb_ci, turb_co, rated_ws,
+                                rated_pwr, wind_speed_probs)
+    pwr_prod_dir = np.sum(pwr_prod_ws, axis=0) * wind_freq
 
     #  Convert power to AEP
     hrs_per_year = 365.*24.
     AEP = hrs_per_year * np.sum(pwr_prod_dir)
     AEP /= 1.E6  # Convert to MWh
+    
     return AEP
 
 
