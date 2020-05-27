@@ -21,6 +21,7 @@ from matplotlib.collections import PatchCollection
 import iea37_aepcalc_fast as ieatools
 from time import time
 from scipy.spatial.distance import cdist
+from scipy.interpolate import interp1d
 from shapely.geometry import MultiPolygon, MultiPoint, Polygon, Point
 
 
@@ -129,8 +130,8 @@ class Layout():
         # print('AEP_initial: ', self.AEP_initial)
         # print('===== after get_AEP =====')
         
-        return -AEP  # /self.AEP_initial
-
+        return -AEP
+        
     def get_AEP(self):
         AEP = ieatools.calcAEPcs3(self.coords, self.wd_freq, self.ws,
             self.ws_freq, self.wd, self.D, self.cut_in, self.cut_out, 
@@ -223,8 +224,52 @@ class Layout():
         self.y = self._norm(all_points[:, 1], self.bndy_min, self.bndy_max)
         
         self.x0, self.y0 = self.x.copy(), self.y.copy()
+        
+    def place_turbines_along_bounds(self, n_sub_turbs):
+        
+        # Set up vectors for coordinates
+        x = self.x.copy()
+        y = self.y.copy()
+        
+        # Loop through each region
+        size = 0
+        for i_boundary, boundary in enumerate(self.boundaries):
+            
+            looped_boundary = np.vstack((boundary, boundary[0]))
+            
+            # Get the number of turbines in that region
+            n_turbs = int(n_sub_turbs[i_boundary])
+            
+            # Compute the curvilinear length of the boundary for that region.
+            distance = np.cumsum(np.sqrt( np.ediff1d(looped_boundary[:, 0], to_begin=0)**2 + np.ediff1d(looped_boundary[:, 1], to_begin=0)**2 ))
+            
+            # Compute the parametric curve, normalized from 0 to 1.
+            distance = distance / distance[-1]
 
-    def space_constraint(self, locs, rho=250):
+            # Set up interpolation functions along that parametric curve
+            fx, fy = interp1d(distance, looped_boundary[:, 0]), interp1d(distance, looped_boundary[:, 1])
+        
+            # Create equidistant points in the parametric space with a random
+            # starting point
+            point_spacings = np.linspace(0, 1, n_turbs, endpoint=False)
+            point_spacings += np.random.random()
+            point_spacings[point_spacings > 1] -= 1
+            
+            # Compute the x and y coords for the turbines based off the
+            # parametric equidistant points
+            x[size:size+n_turbs] = fx(point_spacings)
+            y[size:size+n_turbs] = fy(point_spacings)
+            
+            # Keep track of the total number of turbines that have been placed
+            size += n_turbs
+            
+        # Normalized the coordinates from physical to scaled coordinates
+        self.x = self._norm(x, self.bndx_min, self.bndx_max)
+        self.y = self._norm(y, self.bndy_min, self.bndy_max)
+        
+        self.x0, self.y0 = self.x.copy(), self.y.copy()
+
+    def space_constraint(self, locs, rho=500):
         x = self._unnorm(locs[:, 0], self.bndx_min, self.bndx_max)
         y = self._unnorm(locs[:, 1], self.bndy_min, self.bndy_max)
                 
