@@ -10,7 +10,7 @@ import layout as layout
 file_name_turb = 'iea37-ex-opt4.yaml'
 file_name_boundary = 'iea37-boundary-cs4.yaml'
 
-opt_options = {'Major iterations limit': 100,
+opt_options = {'Major iterations limit': 0,
                'Verify level' : -1}
 out_dir = 'cs4_GA_results'
 seed = 314
@@ -42,7 +42,13 @@ class GradientOpt(om.ExplicitComponent):
         model = self.options['model']
         turbine_distribution = inputs['turbine_distribution']
         
-        model.place_turbines_within_bounds([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])])
+        try:
+            # model.place_turbines_within_bounds([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])])
+            model.place_turbines_along_bounds([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])])
+            model.place_turbines_smartly([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])])
+        except ValueError:
+            outputs['AEP'] = 1e6
+        
         model.AEP_initial = -model._get_AEP_opt()
 
         opt_prob = opt.Optimization(model=model, solver='SNOPT', optOptions=opt_options)
@@ -75,6 +81,7 @@ class GradientOpt(om.ExplicitComponent):
         results.append(results_dict)
         
         model.plot_layout_opt_results(sol, f'{out_dir}/case_{self.iteration}.png')
+        shutil.copyfile('SNOPT_print.out', f'{out_dir}/SNOPT_print_{self.iteration}.out')
         
         self.iteration += 1
         fail = False
@@ -86,10 +93,13 @@ class GradientOpt(om.ExplicitComponent):
 
 prob = om.Problem()
 
-prob.model.add_subsystem('ivc', om.IndepVarComp('turbine_distribution', np.array((16, 16, 16, 16))), promotes=['*'])
+prob.model.add_subsystem('ivc', om.IndepVarComp('turbine_distribution', np.array((26, 14, 14, 16))), promotes=['*'])
 prob.model.add_subsystem('comp', GradientOpt(model=model), promotes=['*'])
 
-prob.model.add_design_var('turbine_distribution', lower=10, upper=22)
+lower = [20, 12, 12, 16]
+upper = [28, 20, 18, 24]
+
+prob.model.add_design_var('turbine_distribution', lower=lower, upper=upper)
 prob.model.add_objective('AEP')
 
 prob.driver = om.SimpleGADriver()
@@ -98,6 +108,3 @@ prob.driver.options['pop_size'] = 8
 
 prob.setup()
 prob.run_driver()
-    
-with open(f'{out_dir}/results.pkl', "wb") as dill_file:
-    dill.dump(results, dill_file)

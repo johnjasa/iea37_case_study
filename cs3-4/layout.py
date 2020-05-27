@@ -213,6 +213,54 @@ class Layout():
                 counter += 1
         return list_of_points
         
+    def place_gridded_points(self, number, polygon):
+        offset_dist = 2 * self.D
+        new_border = polygon.boundary.parallel_offset(offset_dist, 'right')
+        new_polygon = Polygon(new_border)
+        
+        if new_polygon.area > polygon.area:
+            new_border = polygon.boundary.parallel_offset(offset_dist, 'left')
+            new_polygon = Polygon(new_border)
+            
+        minx, miny, maxx, maxy = new_polygon.bounds
+        
+        for num_grid_points in range(10):
+            x = np.linspace(minx, maxx, num_grid_points)
+            y = np.linspace(miny, maxy, num_grid_points)
+            xx, yy = np.meshgrid(x, y)
+            x = xx.flatten()
+            y = yy.flatten()
+            
+            list_of_points = []
+            for i in range(len(x)):
+                pnt = Point(x[i], y[i])
+                if new_polygon.contains(pnt):
+                    list_of_points.append(pnt.coords)
+                    if len(list_of_points) == number:
+                        return list_of_points
+                        
+    def place_turbine_on_inner_bound(self, number, polygon):
+        try:
+            offset_dist = 4. * self.D
+            new_border = polygon.boundary.parallel_offset(offset_dist, 'right')
+            new_polygon = Polygon(new_border)
+            
+            if new_polygon.area > polygon.area:
+                new_border = polygon.boundary.parallel_offset(offset_dist, 'left')
+                new_polygon = Polygon(new_border)
+        except:
+            offset_dist = 2.5 * self.D
+            new_border = polygon.boundary.parallel_offset(offset_dist, 'right')
+            new_polygon = Polygon(new_border)
+            
+            if new_polygon.area > polygon.area:
+                new_border = polygon.boundary.parallel_offset(offset_dist, 'left')
+                new_polygon = Polygon(new_border)
+                
+        boundary = np.array(new_polygon.boundary.coords)
+            
+        return self.place_turbines_on_bound(boundary, number)
+        
     def place_turbines_within_bounds(self, n_sub_turbs, seed=314):
         all_points = []
         for i_polygon, polygon in enumerate(self.polygons):
@@ -225,6 +273,26 @@ class Layout():
         
         self.x0, self.y0 = self.x.copy(), self.y.copy()
         
+    def place_turbines_on_bound(self, boundary, n_turbs):
+        looped_boundary = np.vstack((boundary, boundary[0]))
+        
+        # Compute the curvilinear length of the boundary for that region.
+        distance = np.cumsum(np.sqrt( np.ediff1d(looped_boundary[:, 0], to_begin=0)**2 + np.ediff1d(looped_boundary[:, 1], to_begin=0)**2 ))
+        
+        # Compute the parametric curve, normalized from 0 to 1.
+        distance = distance / distance[-1]
+
+        # Set up interpolation functions along that parametric curve
+        fx, fy = interp1d(distance, looped_boundary[:, 0]), interp1d(distance, looped_boundary[:, 1])
+    
+        # Create equidistant points in the parametric space with a random
+        # starting point
+        point_spacings = np.linspace(0, 1, n_turbs, endpoint=False)
+        point_spacings += np.random.random()
+        point_spacings[point_spacings > 1] -= 1
+        
+        return fx(point_spacings), fy(point_spacings)
+        
     def place_turbines_along_bounds(self, n_sub_turbs):
         
         # Set up vectors for coordinates
@@ -235,30 +303,77 @@ class Layout():
         size = 0
         for i_boundary, boundary in enumerate(self.boundaries):
             
-            looped_boundary = np.vstack((boundary, boundary[0]))
-            
             # Get the number of turbines in that region
             n_turbs = int(n_sub_turbs[i_boundary])
             
+            new_x, new_y = self.place_turbines_on_bound(boundary, n_turbs)
+            
+            # Compute the x and y coords for the turbines based off the
+            # parametric equidistant points
+            x[size:size+n_turbs] = new_x
+            y[size:size+n_turbs] = new_y
+            
+            # Keep track of the total number of turbines that have been placed
+            size += n_turbs
+            
+        # Normalized the coordinates from physical to scaled coordinates
+        self.x = self._norm(x, self.bndx_min, self.bndx_max)
+        self.y = self._norm(y, self.bndy_min, self.bndy_max)
+        
+        self.x0, self.y0 = self.x.copy(), self.y.copy()
+        
+    def place_turbines_smartly(self, n_sub_turbs):
+        
+        # Set up vectors for coordinates
+        x = self.x.copy()
+        y = self.y.copy()
+        
+        # Loop through each region
+        size = 0
+        for i, boundary in enumerate(self.boundaries):
+            looped_boundary = np.vstack((boundary, boundary[0]))
+            
+            # Get the number of turbines in that region
+            n_turbs = int(n_sub_turbs[i])
+            
             # Compute the curvilinear length of the boundary for that region.
-            distance = np.cumsum(np.sqrt( np.ediff1d(looped_boundary[:, 0], to_begin=0)**2 + np.ediff1d(looped_boundary[:, 1], to_begin=0)**2 ))
+            dimensional_distance = np.cumsum(np.sqrt( np.ediff1d(looped_boundary[:, 0], to_begin=0)**2 + np.ediff1d(looped_boundary[:, 1], to_begin=0)**2 ))
             
             # Compute the parametric curve, normalized from 0 to 1.
-            distance = distance / distance[-1]
+            distance = dimensional_distance / dimensional_distance[-1]
 
             # Set up interpolation functions along that parametric curve
             fx, fy = interp1d(distance, looped_boundary[:, 0]), interp1d(distance, looped_boundary[:, 1])
-        
+            
+            polygon_area = self.polygons[i].area
+            perimeter = dimensional_distance[-1]
+            turb_per_perim = self.D * n_turbs / perimeter
+            
+            # Heurestic for this specific geometry to get some interior points
+            magic_number = 1.0 - 2 * (turb_per_perim - 0.23)
+            
+            if magic_number > 1:
+                magic_number = 1
+                
+            n_boundary_turbs = int(magic_number * n_turbs)
+            n_interior_turbs = n_turbs - n_boundary_turbs
+            print(f'interior: {n_interior_turbs}, boundary: {n_boundary_turbs}')
+            
             # Create equidistant points in the parametric space with a random
             # starting point
-            point_spacings = np.linspace(0, 1, n_turbs, endpoint=False)
+            point_spacings = np.linspace(0, 1, n_boundary_turbs, endpoint=False)
             point_spacings += np.random.random()
             point_spacings[point_spacings > 1] -= 1
             
             # Compute the x and y coords for the turbines based off the
             # parametric equidistant points
-            x[size:size+n_turbs] = fx(point_spacings)
-            y[size:size+n_turbs] = fy(point_spacings)
+            x[size:size+n_boundary_turbs] = fx(point_spacings)
+            y[size:size+n_boundary_turbs] = fy(point_spacings)
+            
+            if n_interior_turbs > 0:
+                new_x, new_y = self.place_turbine_on_inner_bound(n_interior_turbs, self.polygons[i])
+                x[size+n_boundary_turbs:size+n_boundary_turbs+n_interior_turbs] = new_x
+                y[size+n_boundary_turbs:size+n_boundary_turbs+n_interior_turbs] = new_y
             
             # Keep track of the total number of turbines that have been placed
             size += n_turbs

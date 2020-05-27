@@ -10,7 +10,8 @@ import layout as layout
 file_name_turb = 'two_boxes_layout.yaml'
 file_name_boundary = 'two_boxes_boundaries.yaml'
 
-opt_options = {'Major iterations limit': 50}
+opt_options = {'Major iterations limit': 50,
+               'Verify level' : -1}
 out_dir = 'two_boxes_GA_results_within'
 seed = 314
 
@@ -41,8 +42,8 @@ class GradientOpt(om.ExplicitComponent):
         model = self.options['model']
         turbine_distribution = inputs['turbine_distribution']
         
-        # model.place_turbines_along_bounds([turbine_distribution[0], model._nturbs - turbine_distribution[0]])
-        model.place_turbines_within_bounds([turbine_distribution[0], model._nturbs - turbine_distribution[0]])
+        model.place_turbines_along_bounds([turbine_distribution[0], model._nturbs - turbine_distribution[0]])
+        # model.place_turbines_within_bounds([turbine_distribution[0], model._nturbs - turbine_distribution[0]])
         model.AEP_initial = -model._get_AEP_opt()
 
         opt_prob = opt.Optimization(model=model, solver='SNOPT', optOptions=opt_options)
