@@ -7,7 +7,7 @@ import optimization_pyopt as opt
 import layout as layout
 
 
-out_dir = 'two_boxes_GA_results_along'
+out_dir = 'cs4_smart_placement_results'
 tol = 1e-6
 
 # results_dict = {
@@ -40,7 +40,7 @@ boundary_cons = np.array(boundary_cons)
 spacing_cons = np.array(spacing_cons)
 indices = np.array(indices)
 
-mask = (boundary_cons < tol) & (spacing_cons < tol)
+mask = (np.max(boundary_cons, axis=1) < tol) & (spacing_cons < tol)
 feasible_AEPs = AEPs[mask]
 feasible_indices = indices[mask]
 

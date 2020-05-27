@@ -179,7 +179,7 @@ class Layout():
         return optProb
 
     def add_con_group(self, optProb):
-        optProb.addConGroup('boundary_con', 1, upper=0.0)
+        optProb.addConGroup('boundary_con', self.nturbs, upper=0.0)
         optProb.addConGroup('spacing_con', 1, upper=0.0)
 
         return optProb
@@ -322,7 +322,7 @@ class Layout():
         
         self.x0, self.y0 = self.x.copy(), self.y.copy()
         
-    def place_turbines_smartly(self, n_sub_turbs):
+    def place_turbines_smartly(self, n_sub_turbs, coeff=0.23):
         
         # Set up vectors for coordinates
         x = self.x.copy()
@@ -350,14 +350,14 @@ class Layout():
             turb_per_perim = self.D * n_turbs / perimeter
             
             # Heurestic for this specific geometry to get some interior points
-            magic_number = 1.0 - 2 * (turb_per_perim - 0.23)
+            magic_number = 1.0 - 2 * (turb_per_perim - coeff)
             
             if magic_number > 1:
                 magic_number = 1
                 
             n_boundary_turbs = int(magic_number * n_turbs)
             n_interior_turbs = n_turbs - n_boundary_turbs
-            print(f'interior: {n_interior_turbs}, boundary: {n_boundary_turbs}')
+            # print(f'interior: {n_interior_turbs}, boundary: {n_boundary_turbs}')
             
             # Create equidistant points in the parametric space with a random
             # starting point
@@ -381,6 +381,13 @@ class Layout():
         # Normalized the coordinates from physical to scaled coordinates
         self.x = self._norm(x, self.bndx_min, self.bndx_max)
         self.y = self._norm(y, self.bndy_min, self.bndy_max)
+        
+        self.x0, self.y0 = self.x.copy(), self.y.copy()
+        
+    def place_turbines_from_smart_starts(self, locsx, locsy):
+        # Normalized the coordinates from physical to scaled coordinates
+        self.x = self._norm(locsx, self.bndx_min, self.bndx_max)
+        self.y = self._norm(locsy, self.bndy_min, self.bndy_max)
         
         self.x0, self.y0 = self.x.copy(), self.y.copy()
 
@@ -434,17 +441,18 @@ class Layout():
         summation = np.sum(exponents)
         KS_constraint = g_max + 1.0 / rho * np.log(summation)
         
-        return KS_constraint
+        return g  # KS_constraint
 
-    def plot_layout_opt_results(self, sol, filename=None):
+    def plot_layout_opt_results(self, sol=None, filename=None):
         """
         Method to plot the old and new locations of the layout opitimization.
         """
-        locsx = sol.getDVs()['x']
-        locsy = sol.getDVs()['y']
-        
-        locsx = self._unnorm(locsx, self.bndx_min, self.bndx_max)
-        locsy = self._unnorm(locsy, self.bndy_min, self.bndy_max)
+        if sol is not None:
+            locsx = sol.getDVs()['x']
+            locsy = sol.getDVs()['y']
+            
+            locsx = self._unnorm(locsx, self.bndx_min, self.bndx_max)
+            locsy = self._unnorm(locsy, self.bndy_min, self.bndy_max)
 
         plt.figure(figsize=(9, 6))
         fontsize= 16
@@ -458,12 +466,13 @@ class Layout():
         collection = PatchCollection(patches, facecolor='b', alpha=0.2)
         plt.gca().add_collection(collection)
         
-        plt.plot(locsx, locsy, 'or')
-        patches = []
-        for coords in zip(locsx, locsy):
-            patches.append(mpatches.Circle(coords, radius=self.D, linewidth=0.))
-        collection = PatchCollection(patches, facecolor='r', alpha=0.2)
-        plt.gca().add_collection(collection)
+        if sol is not None:
+            plt.plot(locsx, locsy, 'or')
+            patches = []
+            for coords in zip(locsx, locsy):
+                patches.append(mpatches.Circle(coords, radius=self.D, linewidth=0.))
+            collection = PatchCollection(patches, facecolor='r', alpha=0.2)
+            plt.gca().add_collection(collection)
         
         plt.title(f'Initial AEP: {self.AEP_initial:.0f}, Optimized AEP: {self.get_AEP():.0f}', fontsize=fontsize)
         plt.xlabel('x (m)', fontsize=fontsize)
@@ -471,9 +480,13 @@ class Layout():
         plt.axis('equal')
         plt.grid()
         plt.tick_params(which='both', labelsize=fontsize)
-        plt.legend(['Old locations', 'New locations'], loc='lower center', \
-            bbox_to_anchor=(0.5, 1.1), ncol=2, fontsize=fontsize)
-            
+        if sol is not None:
+            plt.legend(['Old locations', 'New locations'], loc='lower center', \
+                bbox_to_anchor=(0.5, 1.1), ncol=2, fontsize=fontsize)
+        else:
+            plt.legend(['Old locations'], loc='lower center', \
+                bbox_to_anchor=(0.5, 1.1), ncol=2, fontsize=fontsize)
+                
         for polygon in self.polygons:    
             xs, ys = polygon.exterior.xy    
             plt.plot(xs, ys, alpha=0.5, color='b')

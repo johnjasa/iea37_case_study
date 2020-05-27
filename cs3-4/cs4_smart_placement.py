@@ -12,7 +12,7 @@ file_name_boundary = 'iea37-boundary-cs4.yaml'
 
 opt_options = {'Major iterations limit': 100,
                'Verify level' : -1}
-out_dir = 'cs4_GA_results'
+out_dir = 'cs4_smart_placement_results'
 seed = 314
 
 np.random.seed(seed)
@@ -35,6 +35,7 @@ class GradientOpt(om.ExplicitComponent):
 
     def setup(self):
         self.add_input('turbine_distribution', val=np.array((16, 16, 16, 16)))
+        self.add_input('coeff', val=0.23)
 
         self.add_output('AEP', val=1.0)
 
@@ -45,19 +46,19 @@ class GradientOpt(om.ExplicitComponent):
         try:
             # model.place_turbines_within_bounds([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])])
             # model.place_turbines_along_bounds([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])])
-            model.place_turbines_smartly([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])])
+            model.place_turbines_smartly([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])], coeff=inputs['coeff'])
         except ValueError:
             outputs['AEP'] = 1e6
             return
         
         model.AEP_initial = -model._get_AEP_opt()
 
-        opt_prob = opt.Optimization(model=model, solver='SNOPT', optOptions=opt_options)
+        # opt_prob = opt.Optimization(model=model, solver='SNOPT', optOptions=opt_options)
+        # 
+        # sol = opt_prob.optimize()
         
-        sol = opt_prob.optimize()
-        
-        locsx = sol.getDVs()['x']
-        locsy = sol.getDVs()['y']
+        locsx = model.x0
+        locsy = model.y0
         
         locs = np.vstack((locsx, locsy)).T
         
@@ -69,43 +70,49 @@ class GradientOpt(om.ExplicitComponent):
         cons = model.compute_cons({}, locs)
         
         results_dict = {
-            'optTime' : sol.optTime,
-            'optInform' : sol.optInform,
+            # 'optTime' : sol.optTime,
+            # 'optInform' : sol.optInform,
             'AEP_initial' : model.AEP_initial,
             'AEP_final' : AEP_final,
             'locsx' : locsx,
             'locsy' : locsy,
-            'boundary_con' : cons['boundary_con'],
-            'spacing_con' : cons['spacing_con'],
+            # 'boundary_con' : cons['boundary_con'],
+            # 'spacing_con' : cons['spacing_con'],
             }
             
         results.append(results_dict)
         
-        model.plot_layout_opt_results(sol, f'{out_dir}/case_{self.iteration}.png')
-        shutil.copyfile('SNOPT_print.out', f'{out_dir}/SNOPT_print_{self.iteration}.out')
+        # model.plot_layout_opt_results(filename=f'{out_dir}/case_{self.iteration}.png')
+        # shutil.copyfile('SNOPT_print.out', f'{out_dir}/SNOPT_print_{self.iteration}.out')
         
         self.iteration += 1
         fail = False
         
         outputs['AEP'] = -AEP_final
+        print('AEP:', AEP_final)
         
-        with open(f'{out_dir}/results.pkl', "wb") as dill_file:
-            dill.dump(results, dill_file)
+        if self.iteration % 100 == np.floor(self.iteration / 100):
+            print('Saving!')
+            with open(f'{out_dir}/results.pkl', "wb") as dill_file:
+                dill.dump(results, dill_file)
 
 prob = om.Problem()
 
-prob.model.add_subsystem('ivc', om.IndepVarComp('turbine_distribution', np.array((26, 14, 14, 16))), promotes=['*'])
+ivc = prob.model.add_subsystem('ivc', om.IndepVarComp('turbine_distribution', np.array((26, 12, 20, 14))), promotes=['*'])
+ivc.add_output('coeff', val=0.15)
 prob.model.add_subsystem('comp', GradientOpt(model=model), promotes=['*'])
 
-lower = [20, 12, 12, 16]
-upper = [28, 20, 18, 24]
+lower = [14, 12, 12, 12]
+upper = [32, 32, 32, 32]
 
 prob.model.add_design_var('turbine_distribution', lower=lower, upper=upper)
+prob.model.add_design_var('coeff', lower=0.1, upper=0.3)
 prob.model.add_objective('AEP')
 
 prob.driver = om.SimpleGADriver()
-prob.driver.options['debug_print'] = ['desvars', 'objs']
-prob.driver.options['pop_size'] = 8
+# prob.driver.options['debug_print'] = ['desvars', 'objs']
+prob.driver.options['pop_size'] = 16
+prob.driver.options['bits'] = {'coeff': 4}
 
 prob.setup()
 prob.run_driver()
