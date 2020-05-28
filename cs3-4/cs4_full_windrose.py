@@ -10,10 +10,10 @@ import layout as layout
 file_name_turb = 'iea37-ex-opt4_cs4windrose.yaml'
 file_name_boundary = 'iea37-boundary-cs4.yaml'
 
-opt_options = {'Major iterations limit': 30,
+opt_options = {'Major iterations limit': 50,
                'Verify level' : -1}
 out_dir = 'cs4_full_windrose_results'
-start_dir = 'cs4_GA_results'
+start_dir = 'cs4_smart_placement_results'
 num_starts = 20
 
 seed = 314
@@ -56,7 +56,7 @@ for i in indices[:num_starts]:
     model.place_turbines_from_smart_starts(locsx, locsy)
 
     model.AEP_initial = -model._get_AEP_opt()
-    print('Starting AEP after placement (should be DIFFERENT):', model.AEP_initial)
+    print('Starting AEP after placement (should be the same):', model.AEP_initial)
 
     opt_prob = opt.Optimization(model=model, solver='SNOPT', optOptions=opt_options)
 

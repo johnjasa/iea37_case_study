@@ -7,7 +7,7 @@ import optimization_pyopt as opt
 import layout as layout
 
 
-file_name_turb = 'iea37-ex-opt4.yaml'
+file_name_turb = 'iea37-ex-opt4_cs4windrose.yaml'
 file_name_boundary = 'iea37-boundary-cs4.yaml'
 
 opt_options = {'Major iterations limit': 100,
@@ -35,7 +35,8 @@ class GradientOpt(om.ExplicitComponent):
 
     def setup(self):
         self.add_input('turbine_distribution', val=np.array((16, 16, 16, 16)))
-        self.add_input('coeff', val=0.23)
+        self.add_input('coeff', val=np.ones((5)) * 0.15)
+        self.add_input('offset', val=np.ones((5)) * 2.)
 
         self.add_output('AEP', val=1.0)
 
@@ -46,8 +47,8 @@ class GradientOpt(om.ExplicitComponent):
         try:
             # model.place_turbines_within_bounds([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])])
             # model.place_turbines_along_bounds([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])])
-            model.place_turbines_smartly([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])], coeff=inputs['coeff'])
-        except ValueError:
+            model.place_turbines_smartly([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])], inputs['coeff'], inputs['offset'])
+        except:
             outputs['AEP'] = 1e6
             return
         
@@ -99,7 +100,8 @@ class GradientOpt(om.ExplicitComponent):
 prob = om.Problem()
 
 ivc = prob.model.add_subsystem('ivc', om.IndepVarComp('turbine_distribution', np.array((26, 12, 20, 14))), promotes=['*'])
-ivc.add_output('coeff', val=0.15)
+ivc.add_output('coeff', val=np.ones((5)) * 0.15)
+ivc.add_output('offset', val=np.ones((5)) * 2.)
 prob.model.add_subsystem('comp', GradientOpt(model=model), promotes=['*'])
 
 lower = [14, 12, 12, 12]
@@ -107,12 +109,14 @@ upper = [32, 32, 32, 32]
 
 prob.model.add_design_var('turbine_distribution', lower=lower, upper=upper)
 prob.model.add_design_var('coeff', lower=0.1, upper=0.3)
+prob.model.add_design_var('offset', lower=2., upper=6.)
 prob.model.add_objective('AEP')
 
 prob.driver = om.SimpleGADriver()
 # prob.driver.options['debug_print'] = ['desvars', 'objs']
 prob.driver.options['pop_size'] = 16
-prob.driver.options['bits'] = {'coeff': 4}
+prob.driver.options['max_gen'] = 200
+prob.driver.options['bits'] = {'coeff' : 4}
 
 prob.setup()
 prob.run_driver()

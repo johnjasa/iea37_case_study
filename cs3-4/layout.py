@@ -239,24 +239,15 @@ class Layout():
                     if len(list_of_points) == number:
                         return list_of_points
                         
-    def place_turbine_on_inner_bound(self, number, polygon):
-        try:
-            offset_dist = 4. * self.D
-            new_border = polygon.boundary.parallel_offset(offset_dist, 'right')
+    def place_turbine_on_inner_bound(self, number, polygon, offset):
+        offset_dist = offset * self.D
+        new_border = polygon.boundary.parallel_offset(offset_dist, 'right')
+        new_polygon = Polygon(new_border)
+        
+        if new_polygon.area > polygon.area:
+            new_border = polygon.boundary.parallel_offset(offset_dist, 'left')
             new_polygon = Polygon(new_border)
             
-            if new_polygon.area > polygon.area:
-                new_border = polygon.boundary.parallel_offset(offset_dist, 'left')
-                new_polygon = Polygon(new_border)
-        except:
-            offset_dist = 2.5 * self.D
-            new_border = polygon.boundary.parallel_offset(offset_dist, 'right')
-            new_polygon = Polygon(new_border)
-            
-            if new_polygon.area > polygon.area:
-                new_border = polygon.boundary.parallel_offset(offset_dist, 'left')
-                new_polygon = Polygon(new_border)
-                
         boundary = np.array(new_polygon.boundary.coords)
             
         return self.place_turbines_on_bound(boundary, number)
@@ -322,7 +313,7 @@ class Layout():
         
         self.x0, self.y0 = self.x.copy(), self.y.copy()
         
-    def place_turbines_smartly(self, n_sub_turbs, coeff=0.23):
+    def place_turbines_smartly(self, n_sub_turbs, coeff, offset):
         
         # Set up vectors for coordinates
         x = self.x.copy()
@@ -350,7 +341,7 @@ class Layout():
             turb_per_perim = self.D * n_turbs / perimeter
             
             # Heurestic for this specific geometry to get some interior points
-            magic_number = 1.0 - 2 * (turb_per_perim - coeff)
+            magic_number = 1.0 - 2 * (turb_per_perim - coeff[i])
             
             if magic_number > 1:
                 magic_number = 1
@@ -371,7 +362,7 @@ class Layout():
             y[size:size+n_boundary_turbs] = fy(point_spacings)
             
             if n_interior_turbs > 0:
-                new_x, new_y = self.place_turbine_on_inner_bound(n_interior_turbs, self.polygons[i])
+                new_x, new_y = self.place_turbine_on_inner_bound(n_interior_turbs, self.polygons[i], offset[i])
                 x[size+n_boundary_turbs:size+n_boundary_turbs+n_interior_turbs] = new_x
                 y[size+n_boundary_turbs:size+n_boundary_turbs+n_interior_turbs] = new_y
             
