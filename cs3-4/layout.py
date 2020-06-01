@@ -28,7 +28,8 @@ from shapely.geometry import MultiPolygon, MultiPoint, Polygon, Point
 class Layout():
     def __init__(self, file_name, bnds_file_name, min_dist=None, 
                                                   jac=False, 
-                                                  opt_method='SLSQP', opt_options=None):
+                                                  opt_method='SLSQP', opt_options=None,
+                                                  wd_step=None):
 
         self.file_name = file_name
 
@@ -39,6 +40,9 @@ class Layout():
             ieatools.getTurbAtrbtYAML(self.fname_turb)
         self.wd, self.wd_freq, self.ws, self.ws_freq, self.ws_bin_num, self.ws_min, self.ws_max = \
             ieatools.getWindRoseYAML(self.fname_wr)
+            
+        if wd_step is not None:
+            self.wd, self.wd_freq, self.ws_freq = self.resample_windrose(wd_step)
 
         self.min_dist = 2*self.rotor_diameter
 
@@ -77,6 +81,33 @@ class Layout():
     def set_initial_locs(self, locs):
         self.x0 = self._norm(locs[0:self.nturbs], self.bndx_min, self.bndx_max)
         self.y0 = self._norm(locs[self.nturbs:2*self.nturbs], self.bndy_min, self.bndy_max)
+        
+    def resample_windrose(self, wd_step):
+        num_bins = 360 // wd_step
+        new_wind_dir = np.arange(0, 360, wd_step)
+        new_wind_dir_freq = np.zeros(num_bins)
+        
+        for i in range(num_bins):
+            bin_center = int(new_wind_dir.take([i], mode='wrap'))
+            bin_0 = bin_center - wd_step // 2
+            bin_1 = bin_center + wd_step // 2
+            
+            indices = range(bin_0, bin_1)
+            new_wind_dir_freq[i] = np.sum(self.wd_freq.take(indices, mode='wrap'))
+            
+        new_wind_speed_probs = np.zeros((num_bins, len(self.ws)))
+        
+        for i in range(num_bins):
+            bin_center = int(new_wind_dir.take([i], mode='wrap'))
+            bin_0 = bin_center - wd_step // 2
+            bin_1 = bin_center + wd_step // 2
+            
+            indices = range(bin_0, bin_1)
+            wind_probs = self.ws_freq.take(indices, axis=0, mode='wrap')
+            summed_wind_probs = np.sum(wind_probs, axis=0)
+            new_wind_speed_probs[i, :] = summed_wind_probs / np.linalg.norm(summed_wind_probs, ord=1)
+            
+        return new_wind_dir, new_wind_dir_freq, new_wind_speed_probs
                 
     ###########################################################################
     # Required private optimization methods

@@ -27,11 +27,11 @@ start_dir = 'cs4_smart_placement_results'
 out_dir = 'cs4_full_windrose_results'
 
 # Only run 50 iterations because we should be relatively close to an optimum
-opt_options = {'Major iterations limit': 50,
+opt_options = {'Major iterations limit': 100,
                'Verify level' : -1}
                
 # Number of the top initial layouts to check
-num_starts = 20
+num_starts = 40
 
 seed = 314
 np.random.seed(seed)

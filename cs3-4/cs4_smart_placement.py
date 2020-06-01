@@ -35,7 +35,7 @@ except FileExistsError:
     shutil.rmtree(out_dir)
     os.mkdir(out_dir) 
 
-model = layout.Layout(file_name_turb, file_name_boundary)
+model = layout.Layout(file_name_turb, file_name_boundary, wd_step=18)
 
 results = []
 
