@@ -27,13 +27,14 @@ class Optimization():
         Optimization: An instantiated Optimization object.
     """
 
-    def __init__(self, model, solver=None, optOptions=None):
+    def __init__(self, model, solver=None, optOptions=None, histFileName='history.sql'):
         """
         Instantiate Optimization object and its parameters.
         """
         # self.logger = setup_logger(name=__name__)
 
         self.model = model
+        self.histFileName = histFileName
         self.solver_choices = ['SNOPT', 'IPOPT', 'SLSQP', 'NLPQLP',
                              'FSQP', 'NSGA2', 'PSQP', 'ParOpt',
                              'CONMIN', 'ALPSO']
@@ -79,9 +80,9 @@ class Optimization():
 
     def _optimize(self):
         if hasattr(self.model, '_sens'):
-            self.sol = self.opt(self.optProb, sens=self.model._sens)
+            self.sol = self.opt(self.optProb, sens=self.model._sens, storeHistory=self.histFileName)
         else:
-            self.sol = self.opt(self.optProb, sens='CDR')
+            self.sol = self.opt(self.optProb, sens='CDR', storeHistory=self.histFileName)
 
     # Public methods
 

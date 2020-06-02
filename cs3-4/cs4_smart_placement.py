@@ -6,7 +6,7 @@ naive placement algorithm places turbines in each of the regions, mostly along
 the borders and some in the interior areas of the regions. This GA runs for many
 iterations and should roughly converge to only reasonably good layouts.
 
-The results from this script are then used in `cs4_full_windrose.py`, which
+The results from this script are then used in `cs4_local_optimization.py`, which
 takes the best layouts from here and uses those as starting points for
 gradient-based optimization to really fine-tune the results.
 
@@ -35,7 +35,7 @@ except FileExistsError:
     shutil.rmtree(out_dir)
     os.mkdir(out_dir) 
 
-model = layout.Layout(file_name_turb, file_name_boundary, wd_step=18)
+model = layout.Layout(file_name_turb, file_name_boundary, wd_step=8)
 
 results = []
 
@@ -98,7 +98,7 @@ class JustPlaceTurbines(om.ExplicitComponent):
         
         # Only save results every 100 iterations because it takes some time to
         # write to file.
-        if self.iteration % 100 == np.floor(self.iteration / 100):
+        if self.iteration % 300 == np.floor(self.iteration / 300):
             print('Saving!')
             with open(f'{out_dir}/results.pkl', "wb") as dill_file:
                 dill.dump(results, dill_file)
@@ -110,19 +110,19 @@ ivc.add_output('coeff', val=np.ones((5)) * 0.15)
 ivc.add_output('offset', val=np.ones((5)) * 2.)
 prob.model.add_subsystem('comp', JustPlaceTurbines(model=model), promotes=['*'])
 
-lower = [14, 12, 12, 12]
-upper = [32, 32, 32, 32]
+lower = [8, 8, 8, 8]
+upper = [40, 40, 40, 40]
 
 prob.model.add_design_var('turbine_distribution', lower=lower, upper=upper)
-prob.model.add_design_var('coeff', lower=0.1, upper=0.3)
-prob.model.add_design_var('offset', lower=2., upper=6.)
+prob.model.add_design_var('coeff', lower=0.05, upper=0.5)
+prob.model.add_design_var('offset', lower=1., upper=10.)
 prob.model.add_objective('AEP')
 
 prob.driver = om.SimpleGADriver()
-prob.driver.options['pop_size'] = 20
+prob.driver.options['pop_size'] = 30
 prob.driver.options['max_gen'] = 500
-prob.driver.options['bits'] = {'coeff' : 4,
-                               'offset' : 4}
+prob.driver.options['bits'] = {'coeff' : 8,
+                               'offset' : 8}
 
 prob.setup()
 prob.run_driver()
