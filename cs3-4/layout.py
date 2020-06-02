@@ -13,10 +13,12 @@
 # See https://floris.readthedocs.io for documentation
  
 # from autograd import grad
+import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 from matplotlib.collections import PatchCollection
+from scipy.optimize import minimize
 # import iea37_aepcalc_test as ieatools
 import iea37_aepcalc_fast as ieatools
 from time import time
@@ -31,6 +33,14 @@ class Layout():
                                                   opt_method='SLSQP', opt_options=None):
 
         self.file_name = file_name
+        self.bnds_file_name = bnds_file_name
+
+        self.cluster_distance = 5000
+
+        self.tx = []
+        self.ty = []
+
+        self.nturbs_initial = 0
 
         self.coords, self.fname_turb, self.fname_wr = \
             ieatools.getTurbLocYAML(self.file_name)
@@ -40,7 +50,13 @@ class Layout():
         self.wd, self.wd_freq, self.ws, self.ws_freq, self.ws_bin_num, self.ws_min, self.ws_max = \
             ieatools.getWindRoseYAML(self.fname_wr)
 
-        self.min_dist = 2*self.rotor_diameter
+        # self.A = np.zeros((self.nturbs, self.nturbs))
+        self.A = np.matrix([0])  # adjacency matrix - initially only one node
+
+        if min_dist is None:
+            self.min_dist = 2*self.rotor_diameter
+        else:
+            self.min_dist = min_dist
 
         self.boundaries = ieatools.getBoundaryAtrbtYAML(bnds_file_name)
         bound_array = np.vstack(self.boundaries)
@@ -212,6 +228,248 @@ class Layout():
                 list_of_points.append(pnt.coords)
                 counter += 1
         return list_of_points
+
+    def set_initial_turbine_location(self, tx, ty):
+        self.tx = tx
+        self.ty = ty
+        self.nturbs_initial += 1
+
+    def add_random_turbine_in_polygons(self, polygons):
+        # add turbine to simulation
+        count = 0
+        dist = 0
+        turb_in_poly = False
+
+        self.poly_xmin = np.min([polygon.bounds[0] for polygon in polygons])
+        self.poly_ymin = np.min([polygon.bounds[1] for polygon in polygons])
+        self.poly_xmax = np.max([polygon.bounds[2] for polygon in polygons])
+        self.poly_ymax = np.max([polygon.bounds[3] for polygon in polygons])
+
+        while (dist < self.min_dist) or (turb_in_poly == False):
+            x = np.random.rand(1)*(self.poly_xmax - self.poly_xmin) \
+                + self.poly_xmin
+            y = np.random.rand(1)*(self.poly_ymax - self.poly_ymin) \
+                + self.poly_ymin
+            pnt = Point(x, y)
+
+            if len(self.tx) < 1:
+                dist = 2*self.min_dist
+            else:
+                dist = np.min(np.sqrt( (x-self.tx)**2 + (y-self.ty)**2 ))
+            for polygon in polygons:
+                turb_in_poly = polygon.contains(pnt)
+                if turb_in_poly == True:
+                    break
+            count = count + 1
+
+            if count == 1000:
+                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                print('Can not find space for a turbine.')
+                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                break
+
+        # add node to the system
+        print('Appending turbine! turb_in_poly =', turb_in_poly)
+        self.tx.append(x[0])
+        self.ty.append(y[0])
+        self.nturbs_initial = self.nturbs_initial + 1
+
+        return x, y
+
+    def add_random_turbine_in_polygon(self, polygon):
+        # add turbine to simulation
+        count = 0
+        dist = 0
+        turb_in_poly = False
+
+        self.poly_xmin = polygon.bounds[0]
+        self.poly_ymin = polygon.bounds[1]
+        self.poly_xmax = polygon.bounds[2]
+        self.poly_ymax = polygon.bounds[3]
+
+        while (dist < self.min_dist) or (turb_in_poly == False):
+            x = np.random.rand(1)*(self.poly_xmax - self.poly_xmin) \
+                + self.poly_xmin
+            y = np.random.rand(1)*(self.poly_ymax - self.poly_ymin) \
+                + self.poly_ymin
+            pnt = Point(x, y)
+
+            # if first turbine, set dist value so minimum spacing is true
+            if len(self.tx) < 1:
+                dist = 2*self.min_dist
+            else:
+                dist = np.min(np.sqrt( (x-self.tx)**2 + (y-self.ty)**2 ))
+
+            turb_in_poly = polygon.contains(pnt)
+
+            count = count + 1
+
+            if count == 1000:
+                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                print('Can not find space for a turbine.')
+                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                break
+
+        # add node to the system
+        print('Appending turbine! turb_in_poly =', turb_in_poly)
+        self.tx.append(x[0])
+        self.ty.append(y[0])
+        self.nturbs_initial = self.nturbs_initial + 1
+
+        return x, y
+
+    def optimize_individual_turbine(self, turb_id, turb_loc, polygon):
+
+        # TODO: dynamic programming and or mixed integer linear program
+
+        # update number of turbines
+        self.nturbs_initial = self.nturbs_initial + 1
+
+        self.poly_xmin = polygon.bounds[0]
+        self.poly_ymin = polygon.bounds[1]
+        self.poly_xmax = polygon.bounds[2]
+        self.poly_ymax = polygon.bounds[3]
+
+        # print('***************', polygon.bounds)
+        # print(self.poly_xmin)
+        # print(self.poly_ymin)
+        # print(self.poly_xmax)
+        # print(self.poly_ymax)
+        # lkj
+
+        # initialize turbine location
+        x0 = copy.deepcopy(turb_loc)
+        print('x0 = ', x0)
+
+        # add bounds
+        bnds = [
+            (self.poly_xmin, self.poly_xmax),
+            (self.poly_ymin, self.poly_ymax)
+        ]
+
+        # add constraints
+        con1 = {
+            'type': 'ineq', 'fun': lambda x: \
+                np.min(np.sqrt( (x[0] - self.tx)**2 + (x[1] - self.ty)**2)) \
+                    - self.min_dist
+        }
+        con2 = {
+            'type': 'ineq', 'fun' : lambda x, *args: \
+                self.distance_from_boundaries_initial(x, polygon), \
+                'args': [polygon]
+        }
+        cons = [con1, con2]
+
+        # optimize location of the one node
+        res = minimize(
+            self.obj_func_initial_turbine_layout,
+            x0,
+            args=(turb_id),
+            method='SLSQP',
+            bounds=bnds,
+            constraints=cons
+        )
+
+        # add node to the system
+        self.tx.append(res.x[0])
+        self.ty.append(res.x[1])
+
+        return res.x
+    
+    def obj_func_initial_turbine_layout(self, x, turb_id):
+        # define the new adjacency matrix with added node
+        self.update_network(x, turb_id)
+
+        return (1/np.max(self.wd_freq))*np.nansum(self.A)
+
+    def update_network(self, x, turb_id):
+        # find distance from new node to other nodes
+        dist = np.sqrt( (x[0] - self.tx)**2 + (x[1] - self.ty)**2 )
+
+        # find turbines that are inside the cluster distance
+        idx = np.where(dist <= self.cluster_distance)
+        # lkj
+
+        # set up adjacency matrix with additional rows and 
+        # columns for the interactions
+        tmp_A = np.zeros((self.nturbs_initial, self.nturbs_initial))
+        for i in range(0, turb_id):
+            for j in range(0, turb_id):
+                tmp_A[i, j] = self.A[i, j]
+
+        # if there are any nearby turbines update the adjacency matrix
+        if len(idx[0]) > 0:
+            for i in range(len(idx[0])):
+                if idx[0][i] != turb_id:
+                    # identify interactions on the added node
+                    # find the wind direction that will impact the added turbine
+                    y_dist = x[1] - self.ty[idx[0][i]]
+                    x_dist = x[0] - self.tx[idx[0][i]]
+                    wd = 90 - np.degrees(np.arctan((y_dist/x_dist)))
+                    if wd < 0:
+                        wd = wd + 360
+                    f = self.freq(wd)
+                    tmp_A[turb_id, idx[0][i]] = 10000 * f / dist[idx[0][i]]
+                    if np.isnan(tmp_A[turb_id, idx[0][i]]):
+                        tmp_A[turb_id, idx[0][i]] = 10**9
+
+                    # identify interactions of the added node on other turbines
+                    y_dist = x[1] - self.ty[idx[0][i]]
+                    x_dist = self.tx[idx[0][i]] - x[0]
+                    # get wind direction that is associated with 
+                    # turbine j impacting turbine i
+                    wd = 90 - np.degrees(np.arctan((y_dist / x_dist)))
+                    if wd < 0:
+                        wd = wd + 360
+                    f = self.freq(wd)
+                    tmp_A[idx[0][i],turb_id] = 10000 * f / dist[idx[0][i]]
+                    if np.isnan(tmp_A[idx[0][i], turb_id]):
+                        tmp_A[idx[0][i], turb_id] = 10**9
+
+        self.A = copy.deepcopy(tmp_A)
+
+    def freq(self, wd):
+        # TODO: make for generic wind roses
+        # f = interpolate.interp2d(self.wind_rose['wind_speed'], self.wind_rose['wind_direction'],
+        #                          self.wind_rose['frequency'], kind='linear')
+
+        # how often does that wind direction happen?
+        dist = np.abs(wd - self.wd)
+        idx = np.where(dist == np.min(dist))
+
+        return np.sum(self.ws_freq[idx[0]])
+
+    def distance_from_boundaries_initial(self, locs, polygon, rho=500):
+        x = [locs[0]]
+        y = [locs[1]]
+        
+        locs = np.vstack((x, y)).T
+        points = MultiPoint(locs)
+        # dist_out = np.zeros((len(x), len(self.polygons)))
+        dist_out = np.zeros((len(x), 1))
+        # for j, polygon in enumerate(self.polygons):
+        for i, point in enumerate(points):
+            # dist_out[i, j] = polygon.exterior.distance(point)
+            dist_out[i, 0] = polygon.exterior.distance(point)
+            if not polygon.contains(point):
+                # dist_out[i, j] *= -1.
+                dist_out[i, 0] *= -1.
+                    
+        # We only care if the point is in one of the regions
+        dist_out = np.max(dist_out, axis=1)
+        
+        g = dist_out / 1e4
+        
+        # Following code copied from OpenMDAO KSComp().
+        # Constraint is satisfied when KS_constraint <= 0
+        g_max = np.max(np.ravel(g))
+        g_diff = g - g_max
+        exponents = np.exp(rho * g_diff)
+        summation = np.sum(exponents)
+        KS_constraint = g_max + 1.0 / rho * np.log(summation)
+        
+        return g  # KS_constraint
+
         
     def place_gridded_points(self, number, polygon):
         offset_dist = 2 * self.D
@@ -406,7 +664,7 @@ class Layout():
         return KS_constraint[0][0]
         
 
-    def distance_from_boundaries(self, locs, rho=500):  
+    def distance_from_boundaries(self, locs, rho=500):
         x = self._unnorm(locs[:, 0], self.bndx_min, self.bndx_max)
         y = self._unnorm(locs[:, 1], self.bndy_min, self.bndy_max)
         
@@ -433,6 +691,32 @@ class Layout():
         KS_constraint = g_max + 1.0 / rho * np.log(summation)
         
         return g  # KS_constraint
+
+    def plot_turbines(self,label=None,c='ro',fill=True):
+
+        for i in range(self.nturbs_initial):
+            x = np.linspace(self.tx[i] - self.min_dist, self.tx[i] + self.min_dist, 1000)
+            y1 = np.sqrt(self.min_dist ** 2 - (x - self.tx[i]) ** 2) + self.ty[i]
+            y2 = -np.sqrt(self.min_dist ** 2 - (x - self.tx[i]) ** 2) + self.ty[i]
+            plt.plot(x, y1, 'k--')
+            plt.plot(x, y2, 'k--')
+            if fill:
+                plt.fill_between(x, y1, y2, color='k')
+            if i == 0:
+                plt.plot(self.tx[i], self.ty[i], c, markersize=5,label=label)
+            else:
+                plt.plot(self.tx[i], self.ty[i], c, markersize=5)
+
+    def plot_boundaries(self):
+        for j in range(len(self.boundaries)):
+            boundaries = self.boundaries[j]
+            for i in range(len(boundaries)):
+                if i == len(boundaries)-1:
+                    plt.plot([boundaries[i][0], boundaries[0][0]], \
+                            [boundaries[i][1], boundaries[0][1]], 'b')        
+                else:
+                    plt.plot([boundaries[i][0], boundaries[i+1][0]], \
+                            [boundaries[i][1], boundaries[i+1][1]], 'b')
 
     def plot_layout_opt_results(self, sol=None, filename=None):
         """
