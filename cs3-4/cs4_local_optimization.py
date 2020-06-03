@@ -23,16 +23,16 @@ file_name_boundary = 'iea37-boundary-cs4.yaml'
 
 # List the directory with results from `cs4_smart_placement.py` and the
 # directory where you want outputs for this file
-start_dir = 'cs4_smart_placement_results_new'
-out_dir = 'cs4_8_windrose_results'
+start_dir = 'cs4_greedy_results'
+out_dir = 'cs4_8_windrose_results_greedy'
 
 # Only run 50 iterations because we should be relatively close to an optimum
-opt_options = {'Major iterations limit': 50,
+opt_options = {'Major iterations limit': 0,
                'Verify level' : -1,
                'Major optimality tolerance' : 5e-3}
                
 # Number of the top initial layouts to check
-num_starts = 50
+num_starts = 5000
 
 seed = 314
 np.random.seed(seed)
@@ -70,6 +70,7 @@ results = []
 
 # Loop through the highest AEP cases, starting with the best
 for i in indices[:num_starts]:
+    print()
     
     # Input the locations from the good initial case into a smart placement algo
     print('Starting AEP:', prev_results[i]['AEP_final'])
@@ -77,9 +78,21 @@ for i in indices[:num_starts]:
     locsy = prev_results[i]['locsy']
     
     model.place_turbines_from_smart_starts(locsx, locsy)
+    
+    locsx_ = model._norm(locsx, model.bndx_min, model.bndx_max)
+    locsy_ = model._norm(locsy, model.bndy_min, model.bndy_max)
+    
+    locs = np.vstack((locsx_, locsy_)).T
+    
+    bounds_con = model.distance_from_boundaries(locs)
+    
+    # If the bounds constraint is violated, don't run this point
+    if np.max(bounds_con) > 1.e-3:
+        print('Bounds constraint violated')
+        continue
 
     model.AEP_initial = -model._get_AEP_opt()
-    print('Starting AEP after placement (should be the same):', model.AEP_initial)
+    print('Starting AEP after placement:', model.AEP_initial)
 
     histFileName = 'history.sql'
     # Actually perform optimization

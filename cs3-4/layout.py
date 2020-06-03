@@ -45,7 +45,6 @@ class Layout():
 
         self.coords, self.fname_turb, self.fname_wr = \
             ieatools.getTurbLocYAML(self.file_name)
-        # print('self.coords: ', self.coords)
         self.cut_in, self.cut_out, self.rated_ws, self.rated_pow, self.D = \
             ieatools.getTurbAtrbtYAML(self.fname_turb)
         self.wd, self.wd_freq, self.ws, self.ws_freq, self.ws_bin_num, self.ws_min, self.ws_max = \
@@ -54,7 +53,6 @@ class Layout():
         if wd_step is not None:
             self.wd, self.wd_freq, self.ws_freq = self.resample_windrose(wd_step)
 
-        # self.A = np.zeros((self.nturbs, self.nturbs))
         self.A = np.matrix([0])  # adjacency matrix - initially only one node
 
         if min_dist is None:
@@ -78,12 +76,12 @@ class Layout():
         self.set_initial_locs(self._coords_to_locs())
         self.x = self.x0
         self.y = self.y0
-        # print('self.coords: ', self.coords)
         
-        
-        # self.gradient = grad(self._get_AEP_opt)
-        # self.boundary_con_grad = grad(self.distance_from_boundaries)
-        # self.space_con_grad = grad(self.space_constraint)
+    def re_init(self):
+        self.tx = []
+        self.ty = []
+        self.nturbs_initial = 0
+        self.A = np.matrix([0])  # adjacency matrix - initially only one node
         
     def __str__(self):
         return 'layout'
@@ -265,69 +263,25 @@ class Layout():
         self.ty = ty
         self.nturbs_initial += 1
 
-    def add_random_turbine_in_polygons(self, polygons):
-        # add turbine to simulation
-        count = 0
-        dist = 0
-        turb_in_poly = False
-
-        self.poly_xmin = np.min([polygon.bounds[0] for polygon in polygons])
-        self.poly_ymin = np.min([polygon.bounds[1] for polygon in polygons])
-        self.poly_xmax = np.max([polygon.bounds[2] for polygon in polygons])
-        self.poly_ymax = np.max([polygon.bounds[3] for polygon in polygons])
-
-        while (dist < self.min_dist) or (turb_in_poly == False):
-            x = np.random.rand(1)*(self.poly_xmax - self.poly_xmin) \
-                + self.poly_xmin
-            y = np.random.rand(1)*(self.poly_ymax - self.poly_ymin) \
-                + self.poly_ymin
-            pnt = Point(x, y)
-
-            if len(self.tx) < 1:
-                dist = 2*self.min_dist
-            else:
-                dist = np.min(np.sqrt( (x-self.tx)**2 + (y-self.ty)**2 ))
-            for polygon in polygons:
-                turb_in_poly = polygon.contains(pnt)
-                if turb_in_poly == True:
-                    break
-            count = count + 1
-
-            if count == 1000:
-                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                print('Can not find space for a turbine.')
-                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                break
-
-        # add node to the system
-        print('Appending turbine! turb_in_poly =', turb_in_poly)
-        self.tx.append(x[0])
-        self.ty.append(y[0])
-        self.nturbs_initial = self.nturbs_initial + 1
-
-        return x, y
-
     def add_random_turbine_in_polygon(self, polygon):
         # add turbine to simulation
         count = 0
         dist = 0
         turb_in_poly = False
 
-        self.poly_xmin = polygon.bounds[0]
-        self.poly_ymin = polygon.bounds[1]
-        self.poly_xmax = polygon.bounds[2]
-        self.poly_ymax = polygon.bounds[3]
+        poly_xmin = polygon.bounds[0]
+        poly_ymin = polygon.bounds[1]
+        poly_xmax = polygon.bounds[2]
+        poly_ymax = polygon.bounds[3]
 
         while (dist < self.min_dist) or (turb_in_poly == False):
-            x = np.random.rand(1)*(self.poly_xmax - self.poly_xmin) \
-                + self.poly_xmin
-            y = np.random.rand(1)*(self.poly_ymax - self.poly_ymin) \
-                + self.poly_ymin
+            x = np.random.rand(1) * (poly_xmax - poly_xmin) + poly_xmin
+            y = np.random.rand(1) * (poly_ymax - poly_ymin) + poly_ymin
             pnt = Point(x, y)
 
             # if first turbine, set dist value so minimum spacing is true
             if len(self.tx) < 1:
-                dist = 2*self.min_dist
+                dist = 2 * self.min_dist
             else:
                 dist = np.min(np.sqrt( (x-self.tx)**2 + (y-self.ty)**2 ))
 
@@ -336,21 +290,47 @@ class Layout():
             count = count + 1
 
             if count == 1000:
-                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                print('Can not find space for a turbine.')
-                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                break
+                raise ValueError('Cannot find space for a turbine')
 
         # add node to the system
-        print('Appending turbine! turb_in_poly =', turb_in_poly)
         self.tx.append(x[0])
         self.ty.append(y[0])
         self.nturbs_initial = self.nturbs_initial + 1
 
         return x, y
+        
+    def add_random_turbine_in_polygon_1(self, polygon):
+        # add turbine to simulation
+        count = 0
+        dist = 0
+        turb_in_poly = False
+
+        poly_xmin = polygon.bounds[0]
+        poly_ymin = polygon.bounds[1]
+        poly_xmax = polygon.bounds[2]
+        poly_ymax = polygon.bounds[3]
+
+        while (dist < self.min_dist) or (turb_in_poly == False):
+            x = np.random.rand(1) * (poly_xmax - poly_xmin) + poly_xmin
+            y = np.random.rand(1) * (poly_ymax - poly_ymin) + poly_ymin
+            pnt = Point(x, y)
+
+            # if first turbine, set dist value so minimum spacing is true
+            if len(self.tx) < 1:
+                dist = 2 * self.min_dist
+            else:
+                dist = np.min(np.sqrt( (x-self.tx)**2 + (y-self.ty)**2 ))
+
+            turb_in_poly = polygon.contains(pnt)
+
+            count = count + 1
+
+            if count == 1000:
+                raise ValueError('Cannot find space for a turbine')
+
+        return x, y
 
     def optimize_individual_turbine(self, turb_id, turb_loc, polygon):
-
         # TODO: dynamic programming and or mixed integer linear program
 
         # update number of turbines
@@ -361,16 +341,8 @@ class Layout():
         self.poly_xmax = polygon.bounds[2]
         self.poly_ymax = polygon.bounds[3]
 
-        # print('***************', polygon.bounds)
-        # print(self.poly_xmin)
-        # print(self.poly_ymin)
-        # print(self.poly_xmax)
-        # print(self.poly_ymax)
-        # lkj
-
         # initialize turbine location
         x0 = copy.deepcopy(turb_loc)
-        print('x0 = ', x0)
 
         # add bounds
         bnds = [
@@ -411,96 +383,84 @@ class Layout():
         # define the new adjacency matrix with added node
         self.update_network(x, turb_id)
 
-        return (1/np.max(self.wd_freq))*np.nansum(self.A)
+        return (1 / np.max(self.wd_freq)) * np.nansum(self.A)
 
     def update_network(self, x, turb_id):
+        tx = np.array(self.tx)
+        ty = np.array(self.ty)
+        
         # find distance from new node to other nodes
-        dist = np.sqrt( (x[0] - self.tx)**2 + (x[1] - self.ty)**2 )
+        dist = np.sqrt( (x[0] - tx)**2 + (x[1] - ty)**2 )
 
         # find turbines that are inside the cluster distance
-        idx = np.where(dist <= self.cluster_distance)
-        # lkj
+        indices = np.where(dist <= self.cluster_distance)[0]
 
         # set up adjacency matrix with additional rows and 
         # columns for the interactions
         tmp_A = np.zeros((self.nturbs_initial, self.nturbs_initial))
-        for i in range(0, turb_id):
-            for j in range(0, turb_id):
-                tmp_A[i, j] = self.A[i, j]
-
+        tmp_A[:turb_id, :turb_id] = self.A[:turb_id, :turb_id].copy()
+                
         # if there are any nearby turbines update the adjacency matrix
-        if len(idx[0]) > 0:
-            for i in range(len(idx[0])):
-                if idx[0][i] != turb_id:
-                    # identify interactions on the added node
-                    # find the wind direction that will impact the added turbine
-                    y_dist = x[1] - self.ty[idx[0][i]]
-                    x_dist = x[0] - self.tx[idx[0][i]]
-                    wd = 90 - np.degrees(np.arctan((y_dist/x_dist)))
-                    if wd < 0:
-                        wd = wd + 360
-                    f = self.freq(wd)
-                    tmp_A[turb_id, idx[0][i]] = 10000 * f / dist[idx[0][i]]
-                    if np.isnan(tmp_A[turb_id, idx[0][i]]):
-                        tmp_A[turb_id, idx[0][i]] = 10**9
-
-                    # identify interactions of the added node on other turbines
-                    y_dist = x[1] - self.ty[idx[0][i]]
-                    x_dist = self.tx[idx[0][i]] - x[0]
-                    # get wind direction that is associated with 
-                    # turbine j impacting turbine i
-                    wd = 90 - np.degrees(np.arctan((y_dist / x_dist)))
-                    if wd < 0:
-                        wd = wd + 360
-                    f = self.freq(wd)
-                    tmp_A[idx[0][i],turb_id] = 10000 * f / dist[idx[0][i]]
-                    if np.isnan(tmp_A[idx[0][i], turb_id]):
-                        tmp_A[idx[0][i], turb_id] = 10**9
-
+        if len(indices) > 0:
+            # identify interactions on the added node
+            # find the wind direction that will impact the added turbine
+            y_dist = x[1] - ty[indices]
+            x_dist = x[0] - tx[indices]
+            
+            wd = 90 - np.degrees(np.arctan((y_dist / x_dist)))
+            wd[wd < 0] += 360
+            f = self.freq(wd)
+            tmp_A[turb_id, indices] = 10000 * f / dist[indices]
+            
+            # identify interactions of the added node on other turbines
+            y_dist = x[1] - ty[indices]
+            x_dist = tx[indices] - x[0]
+            
+            # get wind direction that is associated with 
+            # turbine j impacting turbine i
+            wd = 90 - np.degrees(np.arctan((y_dist / x_dist)))
+            wd[wd < 0] += 360
+            f = self.freq(wd)
+            tmp_A[indices, turb_id] = 10000 * f / dist[indices]
+                
+        np.nan_to_num(tmp_A, nan=10**9)
+            
         self.A = copy.deepcopy(tmp_A)
 
     def freq(self, wd):
-        # TODO: make for generic wind roses
-        # f = interpolate.interp2d(self.wind_rose['wind_speed'], self.wind_rose['wind_direction'],
-        #                          self.wind_rose['frequency'], kind='linear')
+        # dist = np.abs(wd - self.wd)
+        # idx = np.where(dist == np.min(dist))
+        # f = np.sum(self.ws_freq[idx[0]])
+        
+        # WARNING: this simplification is only possible because
+        # the full windrose is 360 degrees
+        try:
+            f = np.sum(self.ws_freq[wd.astype(int)], axis=1)
+        except IndexError:
+            print('Handling a nan')
+            bad_indices = np.argwhere(np.isnan(wd))
+            wd_int = wd.astype(int)
+            wd_int[bad_indices] = 0
+            f = np.sum(self.ws_freq[wd_int], axis=1)
+            f[bad_indices] = np.nan            
 
-        # how often does that wind direction happen?
-        dist = np.abs(wd - self.wd)
-        idx = np.where(dist == np.min(dist))
-
-        return np.sum(self.ws_freq[idx[0]])
+        return f
 
     def distance_from_boundaries_initial(self, locs, polygon, rho=500):
         x = [locs[0]]
         y = [locs[1]]
         
         locs = np.vstack((x, y)).T
-        points = MultiPoint(locs)
-        # dist_out = np.zeros((len(x), len(self.polygons)))
-        dist_out = np.zeros((len(x), 1))
-        # for j, polygon in enumerate(self.polygons):
+        points = MultiPoint(np.array(locs))
+        dist_out = np.zeros(len(x))
         for i, point in enumerate(points):
-            # dist_out[i, j] = polygon.exterior.distance(point)
-            dist_out[i, 0] = polygon.exterior.distance(point)
+            dist_out[i] = polygon.exterior.distance(point)
             if not polygon.contains(point):
-                # dist_out[i, j] *= -1.
-                dist_out[i, 0] *= -1.
+                dist_out[i] *= -1.
                     
-        # We only care if the point is in one of the regions
-        dist_out = np.max(dist_out, axis=1)
-        
         g = dist_out / 1e4
         
-        # Following code copied from OpenMDAO KSComp().
-        # Constraint is satisfied when KS_constraint <= 0
-        g_max = np.max(np.ravel(g))
-        g_diff = g - g_max
-        exponents = np.exp(rho * g_diff)
-        summation = np.sum(exponents)
-        KS_constraint = g_max + 1.0 / rho * np.log(summation)
-        
-        return g  # KS_constraint
-
+        return g
         
     def place_gridded_points(self, number, polygon):
         offset_dist = 2 * self.D
@@ -723,31 +683,6 @@ class Layout():
         
         return g  # KS_constraint
 
-    def plot_turbines(self,label=None,c='ro',fill=True):
-
-        for i in range(self.nturbs_initial):
-            x = np.linspace(self.tx[i] - self.min_dist, self.tx[i] + self.min_dist, 1000)
-            y1 = np.sqrt(self.min_dist ** 2 - (x - self.tx[i]) ** 2) + self.ty[i]
-            y2 = -np.sqrt(self.min_dist ** 2 - (x - self.tx[i]) ** 2) + self.ty[i]
-            plt.plot(x, y1, 'k--')
-            plt.plot(x, y2, 'k--')
-            if fill:
-                plt.fill_between(x, y1, y2, color='k')
-            if i == 0:
-                plt.plot(self.tx[i], self.ty[i], c, markersize=5,label=label)
-            else:
-                plt.plot(self.tx[i], self.ty[i], c, markersize=5)
-
-    def plot_boundaries(self):
-        for j in range(len(self.boundaries)):
-            boundaries = self.boundaries[j]
-            for i in range(len(boundaries)):
-                if i == len(boundaries)-1:
-                    plt.plot([boundaries[i][0], boundaries[0][0]], \
-                            [boundaries[i][1], boundaries[0][1]], 'b')        
-                else:
-                    plt.plot([boundaries[i][0], boundaries[i+1][0]], \
-                            [boundaries[i][1], boundaries[i+1][1]], 'b')
 
     def plot_layout_opt_results(self, sol=None, filename=None):
         """
