@@ -684,7 +684,7 @@ class Layout():
         return g  # KS_constraint
 
 
-    def plot_layout_opt_results(self, sol=None, filename=None):
+    def plot_layout_opt_results(self, sol=None, filename=None, final_result=False):
         """
         Method to plot the old and new locations of the layout opitimization.
         """
@@ -703,7 +703,7 @@ class Layout():
         plt.plot(x_init, y_init, 'ob')
         patches = []
         for coords in zip(x_init, y_init):
-            patches.append(mpatches.Circle(coords, radius=self.D, linewidth=0.))
+            patches.append(mpatches.Circle(coords, radius=2*self.D, linewidth=0.))
         collection = PatchCollection(patches, facecolor='b', alpha=0.2)
         plt.gca().add_collection(collection)
         
@@ -711,26 +711,32 @@ class Layout():
             plt.plot(locsx, locsy, 'or')
             patches = []
             for coords in zip(locsx, locsy):
-                patches.append(mpatches.Circle(coords, radius=self.D, linewidth=0.))
+                patches.append(mpatches.Circle(coords, radius=2*self.D, linewidth=0.))
             collection = PatchCollection(patches, facecolor='r', alpha=0.2)
             plt.gca().add_collection(collection)
         
-        plt.title(f'Initial AEP: {self.AEP_initial:.0f}, Optimized AEP: {self.get_AEP():.0f}', fontsize=fontsize)
+        if final_result:
+            plt.title(f'Optimized AEP: {self.get_AEP()/1e3:.1f} GWh', fontsize=fontsize)
+        else:
+            plt.title(f'Initial AEP: {self.AEP_initial:.0f}, Optimized AEP: {self.get_AEP():.0f}', fontsize=fontsize)
+            
         plt.xlabel('x (m)', fontsize=fontsize)
         plt.ylabel('y (m)', fontsize=fontsize)
         plt.axis('equal')
         plt.grid()
         plt.tick_params(which='both', labelsize=fontsize)
+        
         if sol is not None:
             plt.legend(['Old locations', 'New locations'], loc='lower center', \
                 bbox_to_anchor=(0.5, 1.1), ncol=2, fontsize=fontsize)
         else:
-            plt.legend(['Old locations'], loc='lower center', \
-                bbox_to_anchor=(0.5, 1.1), ncol=2, fontsize=fontsize)
+            if not final_result:
+                plt.legend(['Old locations'], loc='lower center', \
+                    bbox_to_anchor=(0.5, 1.1), ncol=2, fontsize=fontsize)
                 
         for polygon in self.polygons:    
             xs, ys = polygon.exterior.xy    
-            plt.plot(xs, ys, alpha=0.5, color='b')
+            plt.plot(xs, ys, alpha=0.5, color='black')
             
         plt.tight_layout()
         

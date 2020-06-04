@@ -1,11 +1,5 @@
 """
-This file performs gradient-based optimization on good initial turbine layouts
-using a simplified cs4 windrose.
-
-After you run `cs4_smart_placement.py`, those results are used at starting
-layouts for this script. Basically, the top initial layouts from there are used
-as starting points for fine-tuning via gradient-based optimization. Here, we
-enforce all constraints and use the full cs4 windrose.
+This file plots the best result and does any postprocessing as needed.
 """
 
 import os
@@ -23,29 +17,16 @@ file_name_boundary = 'iea37-boundary-cs4.yaml'
 
 # List the directory with results from `cs4_smart_placement.py` and the
 # directory where you want outputs for this file
-start_dir = 'cs4_greedy_results'
-out_dir = 'cs4_8_windrose_results_greedy_tmp'
+start_dir = 'cs4_full_windrose_results_best'
+out_dir = 'cs4_full_windrose_results_best'
 
 # Only run 50 iterations because we should be relatively close to an optimum
 opt_options = {'Major iterations limit': 0,
                'Verify level' : -1,
                'Major optimality tolerance' : 5e-3}
                
-# Number of the top initial layouts to check
-num_starts = 5000
-
-seed = 314
-np.random.seed(seed)
-
-# Create the output directory if it doesn't exist already
-try:
-    os.mkdir(out_dir) 
-except FileExistsError:
-    shutil.rmtree(out_dir)
-    os.mkdir(out_dir) 
-
 # Construct the actual layout model
-model = layout.Layout(file_name_turb, file_name_boundary, wd_step=8)
+model = layout.Layout(file_name_turb, file_name_boundary)
 
 # Read in results from the initial turbine placement algo
 with open(f'{start_dir}/results.pkl', "rb") as dill_file:
@@ -68,6 +49,8 @@ indices = indices[sorted_indices]
 
 results = []
 
+num_starts = 1
+
 # Loop through the highest AEP cases, starting with the best
 for i in indices[:num_starts]:
     print()
@@ -84,29 +67,8 @@ for i in indices[:num_starts]:
     
     locs = np.vstack((locsx_, locsy_)).T
     
-    bounds_con = model.distance_from_boundaries(locs)
-    
-    # # If the bounds constraint is violated, don't run this point
-    # if np.max(bounds_con) > 1.e-3:
-    #     print('Bounds constraint violated')
-    #     continue
-
     model.AEP_initial = -model._get_AEP_opt()
     print('Starting AEP after placement:', model.AEP_initial)
-
-    histFileName = 'history.sql'
-    # Actually perform optimization
-    opt_prob = opt.Optimization(model=model, solver='SNOPT', optOptions=opt_options, histFileName=histFileName)
-
-    sol = opt_prob.optimize()
-
-    locsx = sol.getDVs()['x']
-    locsy = sol.getDVs()['y']
-
-    locs = np.vstack((locsx, locsy)).T
-
-    locsx = model._unnorm(locsx, model.bndx_min, model.bndx_max)
-    locsy = model._unnorm(locsy, model.bndy_min, model.bndy_max)
 
     AEP_final = -model._get_AEP_opt()
 
@@ -114,8 +76,6 @@ for i in indices[:num_starts]:
 
     # Save off results for postprocessing
     results_dict = {
-        'optTime' : sol.optTime,
-        'optInform' : sol.optInform,
         'AEP_initial' : model.AEP_initial,
         'AEP_final' : AEP_final,
         'locsx' : locsx,
@@ -123,13 +83,14 @@ for i in indices[:num_starts]:
         'boundary_con' : cons['boundary_con'],
         'spacing_con' : cons['spacing_con'],
         }
+        
+    print(np.max(cons['boundary_con']))
 
     results.append(results_dict)
 
     # Create an image of the layouts and save the optimization history file
-    model.plot_layout_opt_results(sol, f'{out_dir}/case_{i}.png')
-    shutil.copyfile('SNOPT_print.out', f'{out_dir}/SNOPT_print_{i}.out')
-    shutil.copyfile('history.sql', f'{out_dir}/history_{i}.sql')
-
-    with open(f'{out_dir}/results.pkl', "wb") as dill_file:
-        dill.dump(results, dill_file)
+    model.plot_layout_opt_results(filename=f'{out_dir}/final_layout.pdf', final_result=True)
+    
+    locs = np.vstack((locsx, locsy)).T
+    for row in locs:
+        print(f'      - [{row[0]:.8f},  {row[1]:.8f}]')

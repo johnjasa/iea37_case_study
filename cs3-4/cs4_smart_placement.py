@@ -23,7 +23,7 @@ import layout as layout
 
 file_name_turb = 'iea37-ex-opt4_cs4windrose.yaml'
 file_name_boundary = 'iea37-boundary-cs4.yaml'
-out_dir = 'cs4_smart_placement_results_new'
+out_dir = 'tmp'
 
 seed = 314
 
@@ -94,7 +94,9 @@ class JustPlaceTurbines(om.ExplicitComponent):
         fail = False
         
         outputs['AEP'] = -AEP_final
+        print()
         print(f'AEP: {AEP_final:.0f}')
+        print([turbine_distribution[0], turbine_distribution[1], turbine_distribution[2], turbine_distribution[3], model._nturbs - sum(turbine_distribution[:4])])
         
         # Only save results every 300 iterations because it takes some time to
         # write to file.
